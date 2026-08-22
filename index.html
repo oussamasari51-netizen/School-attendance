@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل الدخول — نظام الغيابات</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-badge">📋</div>
+    <h1>نظام تسجيل الغيابات</h1>
+    <p class="sub">سجّل الدخول بحسابك الخاص كأستاذ أو كناظر</p>
+
+    <div class="auth-error" id="errBox"></div>
+
+    <form id="loginForm">
+      <div class="field">
+        <label>البريد الإلكتروني</label>
+        <input type="email" id="email" required placeholder="example@school.dz">
+      </div>
+      <div class="field">
+        <label>كلمة السر</label>
+        <input type="password" id="password" required placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn-primary" id="loginBtn" style="width:100%;margin-top:6px;">
+        دخول
+      </button>
+    </form>
+  </div>
+</div>
+
+<script src="assets/config.js"></script>
+<script>
+  // إذا كان المستخدم مسجّل دخوله مسبقاً، حوّله مباشرة
+  (async () => {
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      const { data: profile } = await db.from("users").select("role").eq("auth_id", session.user.id).single();
+      if (profile) window.location.href = profile.role === "admin" ? "admin.html" : "teacher.html";
+    }
+  })();
+
+  const form = document.getElementById("loginForm");
+  const errBox = document.getElementById("errBox");
+  const loginBtn = document.getElementById("loginBtn");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errBox.style.display = "none";
+    loginBtn.disabled = true;
+    loginBtn.textContent = "جاري التحقق...";
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      errBox.textContent = "البريد الإلكتروني أو كلمة السر غير صحيحة.";
+      errBox.style.display = "block";
+      loginBtn.disabled = false;
+      loginBtn.textContent = "دخول";
+      return;
+    }
+
+    const { data: profile, error: profErr } = await db
+      .from("users")
+      .select("role")
+      .eq("auth_id", data.user.id)
+      .single();
+
+    if (profErr || !profile) {
+      errBox.textContent = "هذا الحساب غير مفعّل في النظام. تواصل مع الإدارة.";
+      errBox.style.display = "block";
+      await db.auth.signOut();
+      loginBtn.disabled = false;
+      loginBtn.textContent = "دخول";
+      return;
+    }
+
+    window.location.href = profile.role === "admin" ? "admin.html" : "teacher.html";
+  });
+</script>
+</body>
+</html>

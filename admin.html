@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة الناظر — نظام الغيابات</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="icon">📋</div>
+    <div>
+      <h1>لوحة الناظر</h1>
+      <div class="meta" id="dateLabel"></div>
+    </div>
+  </div>
+  <div class="user-chip">
+    <span id="adminName">...</span>
+    <button onclick="logout()">خروج</button>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="periods-rail">
+    <div class="rail-head">
+      <h2>خط الحصص</h2>
+      <span class="date" id="todayText"></span>
+    </div>
+    <div class="rail-track" id="railTrack"></div>
+  </div>
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+    <div class="section-title" id="gridTitle" style="margin:0;">الأقسام — الحصة</div>
+    <button class="btn-primary" id="reportBtn">توليد التقرير النهائي</button>
+  </div>
+
+  <div class="grid" id="classGrid">
+    <div class="loading-text">جاري تحميل الأقسام...</div>
+  </div>
+
+  <div id="detailSection" style="display:none;">
+    <div class="section-title" id="detailTitle"></div>
+    <div class="student-list" id="detailList"></div>
+  </div>
+
+</div>
+
+<!-- نافذة تغيير الحالة -->
+<div class="modal-backdrop" id="statusModal">
+  <div class="modal-sheet">
+    <h3 id="modalStudentName"></h3>
+    <p class="msub">اختر الحالة المناسبة</p>
+    <div class="option-list" id="optionList"></div>
+    <div class="modal-close-row">
+      <button class="btn-ghost" onclick="closeModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/config.js"></script>
+<script>
+let profile = null;
+let selectedSlot = null;
+let selectedClass = null;
+let classesCache = [];
+const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+
+function fmtDate() {
+  const d = new Date();
+  return `${dayNames[d.getDay()]} — ${d.toLocaleDateString("ar-DZ")}`;
+}
+
+function parseTime(str) {
+  // "08:00–09:00" -> {startMin, endMin}
+  const parts = str.split(/[–-]/).map(s => s.trim());
+  const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  return { start: toMin(parts[0]), end: toMin(parts[1]) };
+}
+
+function periodStatus(p) {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const { start, end } = parseTime(p.time);
+  if (nowMin < start) return "pending";
+  if (nowMin > end) return "done";
+  return "active";
+}
+
+async function init() {
+  profile = await requireSession("admin");
+  if (!profile) return;
+
+  document.getElementById("adminName").textContent = profile.full_name;
+  document.getElementById("dateLabel").textContent = fmtDate();
+  document.getElementById("todayText").textContent = fmtDate();
+
+  const { data: classes } = await db.from("classes").select("id, name").order("name");
+  classesCache = classes || [];
+
+  renderRail();
+
+  // اختر الحصة الحالية تلقائياً، أو آخر حصة منتهية
+  let target = PERIODS.find(p => periodStatus(p) === "active");
+  if (!target) {
+    const doneOnes = PERIODS.filter(p => periodStatus(p) === "done");
+    target = doneOnes.length ? doneOnes[doneOnes.length - 1] : PERIODS[0];
+  }
+  selectPeriod(target.slot);
+}
+
+function renderRail() {
+  const track = document.getElementById("railTrack");
+  track.innerHTML = "";
+  PERIODS.forEach(p => {
+    const st = periodStatus(p);
+    const btn = document.createElement("button");
+    btn.className = "rail-stop " + st + (selectedSlot === p.slot ? " active" : "");
+    btn.innerHTML = `<div class="dot"></div><div class="label">${p.label}</div>`;
+    btn.onclick = () => selectPeriod(p.slot);
+    track.appendChild(btn);
+  });
+}
+
+async function selectPeriod(slot) {
+  selectedSlot = slot;
+  renderRail();
+  document.getElementById("detailSection").style.display = "none";
+  const p = PERIODS.find(x => x.slot === slot);
+  document.getElementById("gridTitle").textContent = `الأقسام — الحصة ${slot} (${p ? p.time : ""})`;
+
+  const grid = document.getElementById("classGrid");
+  grid.innerHTML = `<div class="loading-text">جاري التحميل...</div>`;
+
+  const { data: records } = await db
+    .from("attendance_records")
+    .select("class_id, status")
+    .eq("record_date", todayISO())
+    .eq("hour_slot", slot);
+
+  grid.innerHTML = "";
+  classesCache.forEach(c => {
+    const count = (records || []).filter(r => r.class_id === c.id && r.status === "غائب").length;
+    const card = document.createElement("div");
+    card.className = "class-card";
+    card.innerHTML = `
+      <div class="cname">${c.name}</div>
+      <div class="stat ${count === 0 ? "zero" : ""}">
+        <span class="num">${count}</span>
+        <span class="txt">غائب</span>
+      </div>
+    `;
+    card.onclick = () => showClassDetail(c);
+    grid.appendChild(card);
+  });
+}
+
+async function showClassDetail(cls) {
+  selectedClass = cls;
+  document.getElementById("detailSection").style.display = "block";
+  document.getElementById("detailTitle").textContent = `${cls.name} — تفاصيل الحصة ${selectedSlot}`;
+  await renderDetailList();
+  document.getElementById("detailSection").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function renderDetailList() {
+  const list = document.getElementById("detailList");
+  list.innerHTML = `<div class="loading-text">جاري التحميل...</div>`;
+
+  const { data: records } = await db
+    .from("attendance_records")
+    .select("id, status, students(id, full_name)")
+    .eq("class_id", selectedClass.id)
+    .eq("record_date", todayISO())
+    .eq("hour_slot", selectedSlot)
+    .order("created_at");
+
+  if (!records || records.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">✅</div>لا يوجد غياب مسجل في هذه الحصة لهذا القسم.</div>`;
+    return;
+  }
+
+  list.innerHTML = "";
+  records.forEach(r => {
+    const row = document.createElement("div");
+    row.className = "student-row";
+    const pillClass = r.status === "غائب" ? "absent" : (r.status === "تسوية وضعية" ? "resolved" : "pending-exit");
+    row.innerHTML = `
+      <div class="sname">${r.students.full_name}</div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="status-pill ${pillClass}">${r.status}</span>
+        <button class="btn-ghost" style="padding:6px 12px; font-size:12.5px;">تعديل</button>
+      </div>
+    `;
+    row.querySelector("button").onclick = () => openModal(r);
+    list.appendChild(row);
+  });
+}
+
+function openModal(record) {
+  document.getElementById("modalStudentName").textContent = record.students.full_name;
+  const optList = document.getElementById("optionList");
+  optList.innerHTML = "";
+  STATUS_OPTIONS.forEach(opt => {
+    const btn = document.createElement("button");
+    btn.className = "option-btn " + opt.cls;
+    btn.textContent = opt.value;
+    btn.onclick = async () => {
+      await db.from("attendance_records").update({ status: opt.value, updated_at: new Date().toISOString() }).eq("id", record.id);
+      closeModal();
+      showToast("تم تحديث الحالة");
+      renderDetailList();
+      selectPeriod(selectedSlot);
+    };
+    optList.appendChild(btn);
+  });
+  document.getElementById("statusModal").classList.add("open");
+}
+function closeModal() {
+  document.getElementById("statusModal").classList.remove("open");
+}
+document.getElementById("statusModal").addEventListener("click", (e) => {
+  if (e.target.id === "statusModal") closeModal();
+});
+
+// ===== التقرير النهائي =====
+document.getElementById("reportBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("reportBtn");
+  btn.disabled = true;
+  btn.textContent = "جاري التوليد...";
+
+  const { data: records } = await db
+    .from("attendance_records")
+    .select("hour_slot, status, students(full_name), classes(name)")
+    .eq("record_date", todayISO())
+    .eq("status", "غائب")
+    .order("hour_slot");
+
+  btn.disabled = false;
+  btn.textContent = "توليد التقرير النهائي";
+
+  if (!records || records.length === 0) {
+    showToast("لا يوجد غياب نهائي مسجل اليوم");
+    return;
+  }
+
+  // تجميع حسب القسم
+  const byClass = {};
+  records.forEach(r => {
+    const cname = r.classes.name;
+    if (!byClass[cname]) byClass[cname] = [];
+    byClass[cname].push({ name: r.students.full_name, hour: r.hour_slot });
+  });
+
+  let html = `
+    <html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+    <title>التقرير النهائي - ${todayISO()}</title>
+    <style>
+      body{font-family:Tajawal,Arial,sans-serif; padding:30px; color:#1C2B39;}
+      h1{font-size:20px; margin-bottom:4px;}
+      .sub{color:#666; margin-bottom:24px;}
+      h2{font-size:16px; background:#E4EDEC; padding:8px 12px; border-radius:8px; margin-top:24px;}
+      table{width:100%; border-collapse:collapse; margin-top:8px;}
+      td,th{border:1px solid #ddd; padding:8px 10px; text-align:right; font-size:14px;}
+      th{background:#F5F2EA;}
+    </style></head><body>
+    <h1>التقرير النهائي للغيابات</h1>
+    <div class="sub">${fmtDate()} — ${todayISO()}</div>
+  `;
+  Object.keys(byClass).forEach(cname => {
+    html += `<h2>${cname} (${byClass[cname].length} غائب)</h2><table><tr><th>التلميذ</th><th>الحصة</th></tr>`;
+    byClass[cname].forEach(s => {
+      html += `<tr><td>${s.name}</td><td>الحصة ${s.hour}</td></tr>`;
+    });
+    html += `</table>`;
+  });
+  html += `</body></html>`;
+
+  const w = window.open("", "_blank");
+  w.document.write(html);
+  w.document.close();
+});
+
+init();
+</script>
+</body>
+</html>

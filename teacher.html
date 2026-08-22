@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>فضاء الأستاذ — تسجيل الغيابات</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="icon">📋</div>
+    <div>
+      <h1>فضاء الأستاذ</h1>
+      <div class="meta" id="dateLabel"></div>
+    </div>
+  </div>
+  <div class="user-chip">
+    <span id="teacherName">...</span>
+    <button onclick="logout()">خروج</button>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="periods-rail">
+    <div class="rail-head">
+      <h2>حصصك اليوم</h2>
+      <span class="date" id="todayText"></span>
+    </div>
+    <div class="rail-track" id="railTrack">
+      <div class="loading-text">جاري تحميل حصصك...</div>
+    </div>
+  </div>
+
+  <div id="noPeriodMsg" class="empty-state" style="display:none;">
+    <div class="icon">🗓️</div>
+    <div>لا توجد لديك حصص مبرمجة اليوم.</div>
+  </div>
+
+  <div id="classSection" style="display:none;">
+    <div class="section-title" id="classTitle"></div>
+    <div class="student-list" id="studentList"></div>
+    <div style="margin-top:18px; display:flex; gap:10px; justify-content:flex-start;">
+      <button class="btn-primary" id="submitBtn">إرسال الغيابات</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="assets/config.js"></script>
+<script>
+let profile = null;
+let mySchedule = [];
+let selectedSlot = null;
+let currentStudents = [];
+let checkedIds = new Set();
+
+const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+
+function fmtDate() {
+  const d = new Date();
+  return `${dayNames[d.getDay()]} — ${d.toLocaleDateString("ar-DZ")}`;
+}
+
+async function init() {
+  profile = await requireSession("teacher");
+  if (!profile) return;
+
+  document.getElementById("teacherName").textContent = profile.full_name;
+  document.getElementById("dateLabel").textContent = fmtDate();
+  document.getElementById("todayText").textContent = fmtDate();
+
+  const dow = currentDayOfWeek();
+  const { data, error } = await db
+    .from("schedule")
+    .select("id, hour_slot, class_id, classes(name)")
+    .eq("teacher_id", profile.id)
+    .eq("day_of_week", dow)
+    .order("hour_slot");
+
+  if (error) {
+    showToast("خطأ في تحميل الجدول");
+    return;
+  }
+  mySchedule = data || [];
+  renderRail();
+
+  if (mySchedule.length === 0) {
+    document.getElementById("noPeriodMsg").style.display = "block";
+  } else {
+    // اختر تلقائياً أقرب حصة للوقت الحالي، أو الأولى
+    selectPeriod(mySchedule[0]);
+  }
+}
+
+function renderRail() {
+  const track = document.getElementById("railTrack");
+  if (mySchedule.length === 0) {
+    track.innerHTML = "";
+    return;
+  }
+  track.innerHTML = "";
+  mySchedule.forEach((item) => {
+    const p = PERIODS.find(x => x.slot === item.hour_slot);
+    const btn = document.createElement("button");
+    btn.className = "rail-stop" + (selectedSlot === item.hour_slot ? " active" : "");
+    btn.innerHTML = `<div class="dot"></div><div class="label">${p ? p.label : item.hour_slot}</div>`;
+    btn.onclick = () => selectPeriod(item);
+    track.appendChild(btn);
+  });
+}
+
+async function selectPeriod(item) {
+  selectedSlot = item.hour_slot;
+  renderRail();
+
+  document.getElementById("classSection").style.display = "block";
+  const p = PERIODS.find(x => x.slot === item.hour_slot);
+  document.getElementById("classTitle").textContent =
+    `${item.classes.name} — الحصة ${item.hour_slot}${p ? " (" + p.time + ")" : ""}`;
+
+  const { data: students, error } = await db
+    .from("students")
+    .select("id, full_name")
+    .eq("class_id", item.class_id)
+    .order("full_name");
+
+  if (error) { showToast("خطأ في تحميل التلاميذ"); return; }
+  currentStudents = students || [];
+
+  const { data: existing } = await db
+    .from("attendance_records")
+    .select("student_id, status")
+    .eq("class_id", item.class_id)
+    .eq("record_date", todayISO())
+    .eq("hour_slot", item.hour_slot);
+
+  checkedIds = new Set((existing || []).filter(r => r.status === "غائب").map(r => r.student_id));
+  window.__existingRecords = existing || [];
+  window.__currentClassId = item.class_id;
+
+  renderStudentList();
+}
+
+function renderStudentList() {
+  const list = document.getElementById("studentList");
+  list.innerHTML = "";
+  currentStudents.forEach(s => {
+    const existingRec = (window.__existingRecords || []).find(r => r.student_id === s.id);
+    const isOtherStatus = existingRec && existingRec.status !== "غائب";
+    const row = document.createElement("div");
+    row.className = "student-row";
+    row.innerHTML = `
+      <div class="check-toggle ${checkedIds.has(s.id) ? "checked" : ""}" data-id="${s.id}">
+        ${checkedIds.has(s.id) ? "✓" : ""}
+      </div>
+      <div style="flex:1; margin-right:12px;">
+        <div class="sname">${s.full_name}</div>
+      </div>
+      ${isOtherStatus ? `<span class="status-pill pending-exit">${existingRec.status}</span>` : ""}
+    `;
+    const toggle = row.querySelector(".check-toggle");
+    if (!isOtherStatus) {
+      toggle.style.cursor = "pointer";
+      toggle.onclick = () => {
+        if (checkedIds.has(s.id)) checkedIds.delete(s.id);
+        else checkedIds.add(s.id);
+        renderStudentList();
+      };
+    } else {
+      toggle.style.opacity = "0.3";
+    }
+    list.appendChild(row);
+  });
+}
+
+document.getElementById("submitBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true;
+  btn.textContent = "جاري الإرسال...";
+
+  const classId = window.__currentClassId;
+  const date = todayISO();
+  const existing = window.__existingRecords || [];
+
+  const toInsert = [];
+  const toDelete = [];
+
+  currentStudents.forEach(s => {
+    const rec = existing.find(r => r.student_id === s.id);
+    const isChecked = checkedIds.has(s.id);
+    if (isChecked && !rec) {
+      toInsert.push({
+        student_id: s.id, class_id: classId, record_date: date,
+        hour_slot: selectedSlot, status: "غائب", recorded_by: profile.id
+      });
+    } else if (!isChecked && rec && rec.status === "غائب") {
+      toDelete.push(s.id);
+    }
+  });
+
+  if (toInsert.length > 0) {
+    const { error } = await db.from("attendance_records").insert(toInsert);
+    if (error) { showToast("خطأ أثناء الحفظ"); btn.disabled = false; btn.textContent = "إرسال الغيابات"; return; }
+  }
+  if (toDelete.length > 0) {
+    await db.from("attendance_records")
+      .delete()
+      .eq("class_id", classId).eq("record_date", date).eq("hour_slot", selectedSlot)
+      .eq("status", "غائب")
+      .in("student_id", toDelete);
+  }
+
+  showToast("تم إرسال الغيابات بنجاح ✓");
+  btn.disabled = false;
+  btn.textContent = "إرسال الغيابات";
+
+  const current = mySchedule.find(x => x.hour_slot === selectedSlot);
+  if (current) selectPeriod(current);
+});
+
+init();
+</script>
+</body>
+</html>
