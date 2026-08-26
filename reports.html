@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>التقارير — نظام الغيابات</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  .tabs { display:flex; gap:8px; margin-bottom:18px; }
+  .tab-btn { background:var(--surface); border:1.5px solid var(--line); color:var(--ink-soft); padding:10px 20px; border-radius:10px; font-weight:700; }
+  .tab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+  .kpi-card { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; text-align:center; }
+  .kpi-card .kicon { font-size:20px; margin-bottom:6px; }
+  .kpi-card .kval { font-family:'Cairo',sans-serif; font-weight:800; font-size:22px; }
+  .kpi-card .klabel { font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .panel { background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; margin-bottom:20px; }
+  .panel h3 { font-size:15px; margin-bottom:14px; }
+  .two-col { display:grid; grid-template-columns:1.3fr 1fr; gap:16px; }
+  @media (max-width: 800px) { .two-col { grid-template-columns:1fr; } }
+  table.rtable { width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.rtable th, table.rtable td { padding:9px 10px; text-align:right; border-bottom:1px solid var(--paper); }
+  table.rtable th { color:var(--ink-soft); font-size:12.5px; }
+  .bar-cell { display:flex; align-items:center; gap:8px; }
+  .bar-track { flex:1; height:7px; background:var(--paper); border-radius:6px; overflow:hidden; }
+  .bar-fill { height:100%; background:var(--absent); border-radius:6px; }
+  .top-item { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--paper); font-size:13.5px; }
+  .top-item .rank { display:inline-flex; width:20px; height:20px; border-radius:50%; background:var(--primary-light); color:var(--primary); align-items:center; justify-content:center; font-size:11px; font-weight:800; margin-left:8px; }
+  select.datepick { max-width:220px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="icon">📊</div>
+    <div>
+      <h1>التقارير</h1>
+      <div class="meta">${SCHOOL_NAME_PLACEHOLDER}</div>
+    </div>
+  </div>
+  <div class="user-chip">
+    <span id="adminName">...</span>
+    <a href="admin.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">⟵ لوحة الناظر</a>
+    <button onclick="logout()">خروج</button>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabDaily">التقرير اليومي</button>
+    <button class="tab-btn" id="tabMonthly">التقرير الشهري</button>
+  </div>
+
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+    <input type="date" id="dayPicker" class="datepick">
+    <input type="month" id="monthPicker" class="datepick" style="display:none;">
+    <button class="btn-primary" id="printBtn">🖨️ طباعة / PDF</button>
+  </div>
+
+  <div id="loadingMsg" class="loading-text">جاري حساب الإحصائيات...</div>
+
+  <div id="reportBody" style="display:none;">
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h3 id="tableTitle">نسب الغياب حسب الأقسام</h3>
+        <table class="rtable">
+          <thead><tr><th>القسم</th><th>الغياب</th><th>نسبة الغياب</th></tr></thead>
+          <tbody id="classTableBody"></tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h3>ملخص الحالة</h3>
+        <canvas id="statusChart" height="200"></canvas>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h3 id="trendTitle">التطور</h3>
+        <canvas id="trendChart" height="180"></canvas>
+      </div>
+      <div class="panel">
+        <h3>أعلى الأقسام غياباً</h3>
+        <div id="topList"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="assets/config.js"></script>
+<script>
+document.querySelector('.meta').textContent = SCHOOL_NAME;
+
+let profile = null;
+let mode = "daily"; // or "monthly"
+let statusChartInst = null, trendChartInst = null;
+let lastStats = null;
+
+async function init() {
+  profile = await requireSession("admin");
+  if (!profile) return;
+  document.getElementById("adminName").textContent = profile.full_name;
+
+  const d = new Date();
+  document.getElementById("dayPicker").value = todayISO();
+  document.getElementById("monthPicker").value = d.toISOString().slice(0, 7);
+
+  await renderReport();
+}
+
+document.getElementById("tabDaily").onclick = () => switchMode("daily");
+document.getElementById("tabMonthly").onclick = () => switchMode("monthly");
+function switchMode(m) {
+  mode = m;
+  document.getElementById("tabDaily").classList.toggle("active", m === "daily");
+  document.getElementById("tabMonthly").classList.toggle("active", m === "monthly");
+  document.getElementById("dayPicker").style.display = m === "daily" ? "block" : "none";
+  document.getElementById("monthPicker").style.display = m === "monthly" ? "block" : "none";
+  renderReport();
+}
+document.getElementById("dayPicker").addEventListener("change", renderReport);
+document.getElementById("monthPicker").addEventListener("change", renderReport);
+
+function countSchoolDays(startISO, endISO) {
+  let count = 0;
+  let d = new Date(startISO + "T00:00:00");
+  const end = new Date(endISO + "T00:00:00");
+  while (d <= end) {
+    const dow = d.getDay(); // 0=الأحد ... 6=السبت
+    if (dow >= 0 && dow <= 4) count++; // الأحد إلى الخميس أيام دراسة
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
+function monthRange(monthStr) {
+  const [y, m] = monthStr.split("-").map(Number);
+  const start = `${y}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end };
+}
+
+async function computeStats(startISO, endISO) {
+  const [{ data: students }, { data: classes }, { data: records }] = await Promise.all([
+    db.from("students").select("id, class_id"),
+    db.from("classes").select("id, name").order("name"),
+    db.from("attendance_records").select("class_id, status, hour_slot, record_date").gte("record_date", startISO).lte("record_date", endISO),
+  ]);
+
+  const studentsPerClass = {};
+  (students || []).forEach(s => { if (s.class_id) studentsPerClass[s.class_id] = (studentsPerClass[s.class_id] || 0) + 1; });
+  const totalStudents = (students || []).length;
+  const periodsPerDay = PERIODS.length;
+  const schoolDays = countSchoolDays(startISO, endISO);
+  const totalPossible = totalStudents * periodsPerDay * schoolDays;
+
+  const perClass = {};
+  (classes || []).forEach(c => perClass[c.id] = { name: c.name, absentPeriods: 0 });
+
+  const statusCounts = { no_excuse: 0, justified: 0, unjustified_explained: 0 };
+  const hourDist = {}; PERIODS.forEach(p => hourDist[p.slot] = 0);
+  const weekdayDist = [0, 0, 0, 0, 0, 0, 0];
+
+  (records || []).forEach(r => {
+    const cat = reportCategory(r.status);
+    if (cat === "resolved") return;
+    statusCounts[cat] = (statusCounts[cat] || 0) + 1;
+    hourDist[r.hour_slot] = (hourDist[r.hour_slot] || 0) + 1;
+    const dow = new Date(r.record_date + "T00:00:00").getDay();
+    weekdayDist[dow]++;
+    if (perClass[r.class_id]) perClass[r.class_id].absentPeriods++;
+  });
+
+  const totalAbsent = statusCounts.no_excuse + statusCounts.justified + statusCounts.unjustified_explained;
+  const attendanceRate = totalPossible > 0 ? (1 - totalAbsent / totalPossible) * 100 : 100;
+
+  const classRows = (classes || []).map(c => {
+    const cs = studentsPerClass[c.id] || 0;
+    const possible = cs * periodsPerDay * schoolDays;
+    const absent = perClass[c.id].absentPeriods;
+    const rate = possible > 0 ? (absent / possible) * 100 : 0;
+    return { name: c.name, students: cs, possible, absent, rate };
+  }).sort((a, b) => b.rate - a.rate);
+
+  return {
+    startISO, endISO, totalStudents, totalClasses: (classes || []).length,
+    periodsPerDay, schoolDays, totalPossible, totalAbsent, attendanceRate,
+    statusCounts, hourDist, weekdayDist, classRows,
+  };
+}
+
+async function renderReport() {
+  document.getElementById("loadingMsg").style.display = "block";
+  document.getElementById("reportBody").style.display = "none";
+
+  let startISO, endISO, label, isMonthly;
+  if (mode === "daily") {
+    startISO = endISO = document.getElementById("dayPicker").value || todayISO();
+    label = new Date(startISO + "T00:00:00").toLocaleDateString("ar-DZ", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    isMonthly = false;
+  } else {
+    const mv = document.getElementById("monthPicker").value || todayISO().slice(0, 7);
+    const r = monthRange(mv);
+    startISO = r.start; endISO = r.end;
+    label = new Date(startISO + "T00:00:00").toLocaleDateString("ar-DZ", { year: "numeric", month: "long" });
+    isMonthly = true;
+  }
+
+  const stats = await computeStats(startISO, endISO);
+  lastStats = stats; lastStats.label = label; lastStats.isMonthly = isMonthly;
+
+  renderKPIs(stats);
+  renderClassTable(stats);
+  renderStatusChart(stats);
+  renderTopList(stats);
+
+  if (isMonthly) {
+    document.getElementById("tableTitle").textContent = `نسب الغياب حسب الأقسام — ${label}`;
+    document.getElementById("trendTitle").textContent = "تطور نسبة الغياب خلال آخر 6 أشهر";
+    await renderMonthlyTrend(startISO);
+  } else {
+    document.getElementById("tableTitle").textContent = `نسب الغياب حسب الأقسام — ${label}`;
+    document.getElementById("trendTitle").textContent = "توزيع الغياب حسب الحصص";
+    renderHourTrend(stats);
+  }
+
+  document.getElementById("loadingMsg").style.display = "none";
+  document.getElementById("reportBody").style.display = "block";
+}
+
+function renderKPIs(s) {
+  const cards = [
+    { icon: "👥", val: s.totalStudents, label: "تلميذ مسجل" },
+    { icon: "🏫", val: s.totalClasses, label: "قسم" },
+    { icon: "⏱️", val: s.totalPossible.toLocaleString("ar-DZ"), label: "إجمالي الحصص" },
+    { icon: "❌", val: s.totalAbsent.toLocaleString("ar-DZ"), label: "إجمالي الغيابات" },
+    { icon: "✅", val: s.attendanceRate.toFixed(2) + "%", label: "نسبة الحضور" },
+    { icon: "📉", val: s.totalClasses ? (s.totalAbsent / s.totalClasses).toFixed(2) : "0", label: "متوسط الغياب للقسم" },
+  ];
+  document.getElementById("kpiGrid").innerHTML = cards.map(c => `
+    <div class="kpi-card">
+      <div class="kicon">${c.icon}</div>
+      <div class="kval">${c.val}</div>
+      <div class="klabel">${c.label}</div>
+    </div>
+  `).join("");
+}
+
+function renderClassTable(s) {
+  const maxRate = Math.max(1, ...s.classRows.map(c => c.rate));
+  document.getElementById("classTableBody").innerHTML = s.classRows.map(c => `
+    <tr>
+      <td>${c.name}</td>
+      <td>${c.absent}</td>
+      <td>
+        <div class="bar-cell">
+          <span>${c.rate.toFixed(1)}%</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${(c.rate / maxRate) * 100}%"></div></div>
+        </div>
+      </td>
+    </tr>
+  `).join("");
+}
+
+function renderTopList(s) {
+  const top3 = s.classRows.slice(0, 3);
+  document.getElementById("topList").innerHTML = top3.length ? top3.map((c, i) => `
+    <div class="top-item">
+      <span><span class="rank">${i + 1}</span>${c.name}</span>
+      <b style="color:var(--absent)">${c.rate.toFixed(1)}%</b>
+    </div>
+  `).join("") : `<div class="empty-state" style="padding:20px;">لا يوجد غياب مسجل في هذه الفترة ✅</div>`;
+}
+
+function renderStatusChart(s) {
+  const ctx = document.getElementById("statusChart");
+  const data = [s.statusCounts.no_excuse, s.statusCounts.justified, s.statusCounts.unjustified_explained];
+  if (statusChartInst) statusChartInst.destroy();
+  statusChartInst = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["غياب بدون عذر", "غياب بعذر مقبول", "غياب بعذر غير مقبول"],
+      datasets: [{ data, backgroundColor: ["#C0392B", "#3F7D5C", "#D68C21"] }]
+    },
+    options: { plugins: { legend: { position: "bottom", labels: { font: { family: "Tajawal" } } } } }
+  });
+}
+
+function renderHourTrend(s) {
+  const ctx = document.getElementById("trendChart");
+  const labels = PERIODS.map(p => "الحصة " + p.label);
+  const data = PERIODS.map(p => s.hourDist[p.slot] || 0);
+  if (trendChartInst) trendChartInst.destroy();
+  trendChartInst = new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets: [{ label: "عدد الغيابات", data, backgroundColor: "#2F5D62" }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+async function renderMonthlyTrend(currentMonthStartISO) {
+  const months = [];
+  let d = new Date(currentMonthStartISO + "T00:00:00");
+  for (let i = 5; i >= 0; i--) {
+    const md = new Date(d.getFullYear(), d.getMonth() - i, 1);
+    months.push(`${md.getFullYear()}-${String(md.getMonth() + 1).padStart(2, "0")}`);
+  }
+  const rates = [];
+  for (const m of months) {
+    const r = monthRange(m);
+    const st = await computeStats(r.start, r.end);
+    rates.push(st.attendanceRate);
+  }
+  const ctx = document.getElementById("trendChart");
+  if (trendChartInst) trendChartInst.destroy();
+  trendChartInst = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: months.map(m => new Date(m + "-01").toLocaleDateString("ar-DZ", { month: "short" })),
+      datasets: [{ label: "نسبة الحضور %", data: rates, borderColor: "#2F5D62", backgroundColor: "rgba(47,93,98,0.12)", fill: true, tension: 0.3 }]
+    },
+    options: { scales: { y: { min: 0, max: 100 } } }
+  });
+}
+
+// ===== الطباعة =====
+document.getElementById("printBtn").addEventListener("click", () => {
+  if (!lastStats) return;
+  const s = lastStats;
+  const title = s.isMonthly ? "التقرير الشهري للغياب" : "التقرير اليومي للغياب";
+
+  let html = `
+  <html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>${title}</title>
+  <style>
+    body{font-family:Arial,Tahoma,sans-serif; padding:26px; color:#111;}
+    .head{display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #111; padding-bottom:12px; margin-bottom:16px;}
+    .head h1{font-size:20px; margin:0;}
+    .head .side{font-size:13px; text-align:center;}
+    .sub{text-align:center; font-size:15px; font-weight:bold; margin-bottom:18px;}
+    .kpis{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px;}
+    .kpi{border:1px solid #999; border-radius:6px; padding:10px 16px; text-align:center; flex:1; min-width:110px;}
+    .kpi b{display:block; font-size:18px;}
+    .kpi span{font-size:11px; color:#444;}
+    table{width:100%; border-collapse:collapse; margin-bottom:18px;}
+    th,td{border:1px solid #999; padding:6px 8px; text-align:center; font-size:12.5px;}
+    th{background:#eee;}
+    .sign{display:flex; justify-content:space-between; margin-top:40px; font-size:13px;}
+    .sign div{text-align:center; width:30%;}
+    .line{border-top:1px solid #333; margin-top:36px; padding-top:4px;}
+    .footer{margin-top:24px; font-size:11px; color:#555; border-top:1px solid #ccc; padding-top:6px;}
+  </style></head><body>
+    <div class="head">
+      <div class="side">${SCHOOL_NAME}<br>السنة الدراسية: ${new Date().getFullYear()}</div>
+      <h1>${title}</h1>
+      <div class="side">الجمهورية الجزائرية الديمقراطية الشعبية<br>وزارة التربية الوطنية</div>
+    </div>
+    <div class="sub">${s.label}</div>
+    <div class="kpis">
+      <div class="kpi"><b>${s.totalStudents}</b><span>عدد التلاميذ المسجلين</span></div>
+      <div class="kpi"><b>${s.totalClasses}</b><span>عدد الأقسام</span></div>
+      <div class="kpi"><b>${s.totalPossible.toLocaleString("ar-DZ")}</b><span>إجمالي الحصص</span></div>
+      <div class="kpi"><b>${s.totalAbsent.toLocaleString("ar-DZ")}</b><span>إجمالي الغيابات</span></div>
+      <div class="kpi"><b>${s.attendanceRate.toFixed(2)}%</b><span>نسبة الحضور</span></div>
+      <div class="kpi"><b>${s.totalClasses ? (s.totalAbsent / s.totalClasses).toFixed(2) : 0}</b><span>متوسط الغياب للقسم</span></div>
+    </div>
+    <table>
+      <tr><th>القسم</th><th>عدد التلاميذ</th><th>إجمالي الحصص</th><th>إجمالي الغياب</th><th>نسبة الغياب</th></tr>
+      ${s.classRows.map(c => `<tr><td>${c.name}</td><td>${c.students}</td><td>${c.possible}</td><td>${c.absent}</td><td>${c.rate.toFixed(2)}%</td></tr>`).join("")}
+      <tr style="font-weight:bold; background:#f5f5f5;">
+        <td>المجموع</td><td>${s.totalStudents}</td><td>${s.totalPossible}</td><td>${s.totalAbsent}</td>
+        <td>${(100 - s.attendanceRate).toFixed(2)}%</td>
+      </tr>
+    </table>
+    <table>
+      <tr><th>غياب بدون عذر</th><th>غياب بعذر مقبول</th><th>غياب بعذر غير مقبول</th><th>المجموع</th></tr>
+      <tr>
+        <td>${s.statusCounts.no_excuse} (${s.totalAbsent ? (s.statusCounts.no_excuse / s.totalAbsent * 100).toFixed(1) : 0}%)</td>
+        <td>${s.statusCounts.justified} (${s.totalAbsent ? (s.statusCounts.justified / s.totalAbsent * 100).toFixed(1) : 0}%)</td>
+        <td>${s.statusCounts.unjustified_explained} (${s.totalAbsent ? (s.statusCounts.unjustified_explained / s.totalAbsent * 100).toFixed(1) : 0}%)</td>
+        <td>${s.totalAbsent}</td>
+      </tr>
+    </table>
+    <div class="sign">
+      <div>إمضاء المكلّف بالغياب<div class="line">${todayISO()}</div></div>
+      <div>إمضاء الناظر<div class="line">${todayISO()}</div></div>
+      <div>ختم المؤسسة<div class="line">&nbsp;</div></div>
+    </div>
+    <div class="footer">تم إنشاء هذا التقرير آلياً بواسطة نظام تسجيل الغيابات — ${new Date().toLocaleString("ar-DZ")}</div>
+  </body></html>`;
+
+  const w = window.open("", "_blank");
+  w.document.write(html);
+  w.document.close();
+});
+
+init();
+</script>
+</body>
+</html>
