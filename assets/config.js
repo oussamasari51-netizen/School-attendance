@@ -18,21 +18,38 @@ const PERIODS = [
   { slot: 7, label: "7", time: "15:00–16:00" },
 ];
 
+// عدد الحصص الفعلي لكل يوم (0=الأحد ... 6=السبت). الثلاثاء 4 حصص فقط (صباحاً)، الجمعة والسبت عطلة.
+const DAY_PERIODS_COUNT = { 0: 7, 1: 7, 2: 4, 3: 7, 4: 7, 5: 0, 6: 0 };
+
+function isSchoolDay(dow) {
+  return DAY_PERIODS_COUNT[dow] > 0;
+}
+
+// يرجع فقط الحصص المتاحة فعلياً في يوم معيّن (تاريخ أو رقم يوم)
+function getPeriodsForDay(dateOrDow) {
+  const dow = typeof dateOrDow === "number" ? dateOrDow : new Date(dateOrDow + "T00:00:00").getDay();
+  const count = DAY_PERIODS_COUNT[dow] || 0;
+  return PERIODS.filter(p => p.slot <= count);
+}
+
+// آخر حصة في اليوم (لتحديد هل التلميذ ممنوع من الدخول غداً)
+function lastPeriodOfDay(dateOrDow) {
+  const dow = typeof dateOrDow === "number" ? dateOrDow : new Date(dateOrDow + "T00:00:00").getDay();
+  return DAY_PERIODS_COUNT[dow] || 0;
+}
+
 const SCHOOL_NAME = "متوسطة بوزراد حسين — عنابة";
 
 const STATUS_OPTIONS = [
   { value: "تسوية وضعية", cls: "opt-resolved" },
   { value: "خروج استثنائي", cls: "opt-pending" },
-  { value: "غياب بعذر مقبول", cls: "opt-pending" },
-  { value: "غياب بعذر غير مقبول", cls: "opt-absent" },
 ];
 
-// تصنيف كل حالة إلى فئات تقرير الوزارة الرسمية
+// تصنيف الحالة: "resolved" (تسوية وضعية) يُستبعد كلياً من إحصاء الغياب، وأي شيء آخر يُحتسب غياباً
 function reportCategory(status) {
-  if (status === "تسوية وضعية") return "resolved"; // لا يُحتسب كغياب إطلاقاً
-  if (status === "غياب بعذر مقبول" || status === "خروج استثنائي") return "justified";
-  if (status === "غياب بعذر غير مقبول") return "unjustified_explained";
-  return "no_excuse"; // الحالة الافتراضية "غائب" (لم يُبت في أمرها بعد)
+  if (status === "تسوية وضعية") return "resolved";
+  if (status === "خروج استثنائي") return "exit";
+  return "plain"; // الحالة الافتراضية "غائب"
 }
 
 function todayISO() {
