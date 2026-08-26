@@ -36,7 +36,7 @@
 
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
     <div class="section-title" id="gridTitle" style="margin:0;">الأقسام — الحصة</div>
-    <button class="btn-primary" id="reportBtn">توليد التقرير النهائي</button>
+    <a href="reports.html" class="btn-primary" style="text-decoration:none; display:inline-block;">📊 التقارير اليومية والشهرية</a>
   </div>
 
   <div class="grid" id="classGrid">
@@ -144,7 +144,7 @@ async function selectPeriod(slot) {
 
   grid.innerHTML = "";
   classesCache.forEach(c => {
-    const count = (records || []).filter(r => r.class_id === c.id && r.status === "غائب").length;
+    const count = (records || []).filter(r => r.class_id === c.id && r.status !== "تسوية وضعية").length;
     const card = document.createElement("div");
     card.className = "class-card";
     card.innerHTML = `
@@ -188,7 +188,8 @@ async function renderDetailList() {
   records.forEach(r => {
     const row = document.createElement("div");
     row.className = "student-row";
-    const pillClass = r.status === "غائب" ? "absent" : (r.status === "تسوية وضعية" ? "resolved" : "pending-exit");
+    const cat = reportCategory(r.status);
+    const pillClass = cat === "resolved" ? "resolved" : (cat === "justified" ? "pending-exit" : "absent");
     row.innerHTML = `
       <div class="sname">${r.students.full_name}</div>
       <div style="display:flex; align-items:center; gap:8px;">
@@ -225,64 +226,6 @@ function closeModal() {
 }
 document.getElementById("statusModal").addEventListener("click", (e) => {
   if (e.target.id === "statusModal") closeModal();
-});
-
-// ===== التقرير النهائي =====
-document.getElementById("reportBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("reportBtn");
-  btn.disabled = true;
-  btn.textContent = "جاري التوليد...";
-
-  const { data: records } = await db
-    .from("attendance_records")
-    .select("hour_slot, status, students(full_name), classes(name)")
-    .eq("record_date", todayISO())
-    .eq("status", "غائب")
-    .order("hour_slot");
-
-  btn.disabled = false;
-  btn.textContent = "توليد التقرير النهائي";
-
-  if (!records || records.length === 0) {
-    showToast("لا يوجد غياب نهائي مسجل اليوم");
-    return;
-  }
-
-  // تجميع حسب القسم
-  const byClass = {};
-  records.forEach(r => {
-    const cname = r.classes.name;
-    if (!byClass[cname]) byClass[cname] = [];
-    byClass[cname].push({ name: r.students.full_name, hour: r.hour_slot });
-  });
-
-  let html = `
-    <html dir="rtl" lang="ar"><head><meta charset="UTF-8">
-    <title>التقرير النهائي - ${todayISO()}</title>
-    <style>
-      body{font-family:Tajawal,Arial,sans-serif; padding:30px; color:#1C2B39;}
-      h1{font-size:20px; margin-bottom:4px;}
-      .sub{color:#666; margin-bottom:24px;}
-      h2{font-size:16px; background:#E4EDEC; padding:8px 12px; border-radius:8px; margin-top:24px;}
-      table{width:100%; border-collapse:collapse; margin-top:8px;}
-      td,th{border:1px solid #ddd; padding:8px 10px; text-align:right; font-size:14px;}
-      th{background:#F5F2EA;}
-    </style></head><body>
-    <h1>التقرير النهائي للغيابات</h1>
-    <div class="sub">${fmtDate()} — ${todayISO()}</div>
-  `;
-  Object.keys(byClass).forEach(cname => {
-    html += `<h2>${cname} (${byClass[cname].length} غائب)</h2><table><tr><th>التلميذ</th><th>الحصة</th></tr>`;
-    byClass[cname].forEach(s => {
-      html += `<tr><td>${s.name}</td><td>الحصة ${s.hour}</td></tr>`;
-    });
-    html += `</table>`;
-  });
-  html += `</body></html>`;
-
-  const w = window.open("", "_blank");
-  w.document.write(html);
-  w.document.close();
 });
 
 init();
