@@ -90,6 +90,11 @@
         <div id="topList"></div>
       </div>
     </div>
+
+    <div class="panel" id="barredPanel" style="display:none;">
+      <h3>🚫 ممنوعون من الدخول غداً (بقوا غائبين حتى آخر حصة دون تسوية)</h3>
+      <div id="barredList"></div>
+    </div>
   </div>
 
 </div>
@@ -128,16 +133,18 @@ function switchMode(m) {
 document.getElementById("dayPicker").addEventListener("change", renderReport);
 document.getElementById("monthPicker").addEventListener("change", renderReport);
 
-function countSchoolDays(startISO, endISO) {
-  let count = 0;
+function schoolPeriodsInRange(startISO, endISO) {
+  // يرجع {schoolDays, totalPeriodSlots} محسوبة يوماً بيوم حسب عدد حصص كل يوم فعلياً
+  let schoolDays = 0, totalPeriodSlots = 0;
   let d = new Date(startISO + "T00:00:00");
   const end = new Date(endISO + "T00:00:00");
   while (d <= end) {
-    const dow = d.getDay(); // 0=الأحد ... 6=السبت
-    if (dow >= 0 && dow <= 4) count++; // الأحد إلى الخميس أيام دراسة
+    const dow = d.getDay();
+    const count = DAY_PERIODS_COUNT[dow] || 0;
+    if (count > 0) { schoolDays++; totalPeriodSlots += count; }
     d.setDate(d.getDate() + 1);
   }
-  return count;
+  return { schoolDays, totalPeriodSlots };
 }
 
 function monthRange(monthStr) {
@@ -150,24 +157,24 @@ function monthRange(monthStr) {
 
 async function computeStats(startISO, endISO) {
   const [{ data: students }, { data: classes }, { data: records }] = await Promise.all([
-    db.from("students").select("id, class_id"),
+    db.from("students").select("id, class_id, full_name").eq("active", true),
     db.from("classes").select("id, name").order("name"),
-    db.from("attendance_records").select("class_id, status, hour_slot, record_date").gte("record_date", startISO).lte("record_date", endISO),
+    db.from("attendance_records").select("student_id, class_id, status, hour_slot, record_date, students(full_name)").gte("record_date", startISO).lte("record_date", endISO),
   ]);
 
   const studentsPerClass = {};
   (students || []).forEach(s => { if (s.class_id) studentsPerClass[s.class_id] = (studentsPerClass[s.class_id] || 0) + 1; });
   const totalStudents = (students || []).length;
-  const periodsPerDay = PERIODS.length;
-  const schoolDays = countSchoolDays(startISO, endISO);
-  const totalPossible = totalStudents * periodsPerDay * schoolDays;
+  const { schoolDays, totalPeriodSlots } = schoolPeriodsInRange(startISO, endISO);
+  const totalPossible = totalStudents * totalPeriodSlots;
 
   const perClass = {};
   (classes || []).forEach(c => perClass[c.id] = { name: c.name, absentPeriods: 0 });
 
-  const statusCounts = { no_excuse: 0, justified: 0, unjustified_explained: 0 };
+  const statusCounts = { plain: 0, exit: 0 };
   const hourDist = {}; PERIODS.forEach(p => hourDist[p.slot] = 0);
   const weekdayDist = [0, 0, 0, 0, 0, 0, 0];
+  const barredToday = []; // فقط ذات فائدة عند نطاق يوم واحد
 
   (records || []).forEach(r => {
     const cat = reportCategory(r.status);
@@ -177,23 +184,32 @@ async function computeStats(startISO, endISO) {
     const dow = new Date(r.record_date + "T00:00:00").getDay();
     weekdayDist[dow]++;
     if (perClass[r.class_id]) perClass[r.class_id].absentPeriods++;
+
+    // هل هذا آخر حصة في يومه ولا يزال "غائب" بدون أي معالجة؟
+    if (r.status === "غائب" && r.hour_slot === lastPeriodOfDay(r.record_date)) {
+      barredToday.push({ name: r.students ? r.students.full_name : "", classId: r.class_id });
+    }
   });
 
-  const totalAbsent = statusCounts.no_excuse + statusCounts.justified + statusCounts.unjustified_explained;
+  const totalAbsent = statusCounts.plain + statusCounts.exit;
   const attendanceRate = totalPossible > 0 ? (1 - totalAbsent / totalPossible) * 100 : 100;
 
   const classRows = (classes || []).map(c => {
     const cs = studentsPerClass[c.id] || 0;
-    const possible = cs * periodsPerDay * schoolDays;
+    const possible = cs * totalPeriodSlots;
     const absent = perClass[c.id].absentPeriods;
     const rate = possible > 0 ? (absent / possible) * 100 : 0;
-    return { name: c.name, students: cs, possible, absent, rate };
+    return { id: c.id, name: c.name, students: cs, possible, absent, rate };
   }).sort((a, b) => b.rate - a.rate);
+
+  // أسماء الأقسام لقائمة الممنوعين
+  const classNameById = {}; (classes || []).forEach(c => classNameById[c.id] = c.name);
+  barredToday.forEach(b => b.className = classNameById[b.classId] || "");
 
   return {
     startISO, endISO, totalStudents, totalClasses: (classes || []).length,
-    periodsPerDay, schoolDays, totalPossible, totalAbsent, attendanceRate,
-    statusCounts, hourDist, weekdayDist, classRows,
+    schoolDays, totalPeriodSlots, totalPossible, totalAbsent, attendanceRate,
+    statusCounts, hourDist, weekdayDist, classRows, barredToday,
   };
 }
 
@@ -221,6 +237,7 @@ async function renderReport() {
   renderClassTable(stats);
   renderStatusChart(stats);
   renderTopList(stats);
+  renderBarredList(stats, isMonthly);
 
   if (isMonthly) {
     document.getElementById("tableTitle").textContent = `نسب الغياب حسب الأقسام — ${label}`;
@@ -280,15 +297,32 @@ function renderTopList(s) {
   `).join("") : `<div class="empty-state" style="padding:20px;">لا يوجد غياب مسجل في هذه الفترة ✅</div>`;
 }
 
+function renderBarredList(s, isMonthly) {
+  const panel = document.getElementById("barredPanel");
+  if (isMonthly) { panel.style.display = "none"; return; }
+  panel.style.display = "block";
+  if (s.barredToday.length === 0) {
+    document.getElementById("barredList").innerHTML = `<div class="empty-state" style="padding:16px;">لا يوجد — كل التلاميذ إما حاضرون أو تمت تسوية وضعيتهم ✅</div>`;
+    return;
+  }
+  document.getElementById("barredList").innerHTML = `
+    <table class="rtable">
+      <thead><tr><th>التلميذ</th><th>القسم</th></tr></thead>
+      <tbody>
+        ${s.barredToday.map(b => `<tr><td>${b.name}</td><td>${b.className}</td></tr>`).join("")}
+      </tbody>
+    </table>`;
+}
+
 function renderStatusChart(s) {
   const ctx = document.getElementById("statusChart");
-  const data = [s.statusCounts.no_excuse, s.statusCounts.justified, s.statusCounts.unjustified_explained];
+  const data = [s.statusCounts.plain, s.statusCounts.exit];
   if (statusChartInst) statusChartInst.destroy();
   statusChartInst = new Chart(ctx, {
     type: "doughnut",
     data: {
-      labels: ["غياب بدون عذر", "غياب بعذر مقبول", "غياب بعذر غير مقبول"],
-      datasets: [{ data, backgroundColor: ["#C0392B", "#3F7D5C", "#D68C21"] }]
+      labels: ["غياب", "خروج استثنائي"],
+      datasets: [{ data, backgroundColor: ["#C0392B", "#D68C21"] }]
     },
     options: { plugins: { legend: { position: "bottom", labels: { font: { family: "Tajawal" } } } } }
   });
@@ -296,8 +330,9 @@ function renderStatusChart(s) {
 
 function renderHourTrend(s) {
   const ctx = document.getElementById("trendChart");
-  const labels = PERIODS.map(p => "الحصة " + p.label);
-  const data = PERIODS.map(p => s.hourDist[p.slot] || 0);
+  const dayPeriods = getPeriodsForDay(s.startISO);
+  const labels = dayPeriods.map(p => "الحصة " + p.label);
+  const data = dayPeriods.map(p => s.hourDist[p.slot] || 0);
   if (trendChartInst) trendChartInst.destroy();
   trendChartInst = new Chart(ctx, {
     type: "bar",
@@ -380,14 +415,19 @@ document.getElementById("printBtn").addEventListener("click", () => {
       </tr>
     </table>
     <table>
-      <tr><th>غياب بدون عذر</th><th>غياب بعذر مقبول</th><th>غياب بعذر غير مقبول</th><th>المجموع</th></tr>
+      <tr><th>غياب</th><th>خروج استثنائي</th><th>المجموع</th></tr>
       <tr>
-        <td>${s.statusCounts.no_excuse} (${s.totalAbsent ? (s.statusCounts.no_excuse / s.totalAbsent * 100).toFixed(1) : 0}%)</td>
-        <td>${s.statusCounts.justified} (${s.totalAbsent ? (s.statusCounts.justified / s.totalAbsent * 100).toFixed(1) : 0}%)</td>
-        <td>${s.statusCounts.unjustified_explained} (${s.totalAbsent ? (s.statusCounts.unjustified_explained / s.totalAbsent * 100).toFixed(1) : 0}%)</td>
+        <td>${s.statusCounts.plain} (${s.totalAbsent ? (s.statusCounts.plain / s.totalAbsent * 100).toFixed(1) : 0}%)</td>
+        <td>${s.statusCounts.exit} (${s.totalAbsent ? (s.statusCounts.exit / s.totalAbsent * 100).toFixed(1) : 0}%)</td>
         <td>${s.totalAbsent}</td>
       </tr>
     </table>
+    ${!s.isMonthly ? `
+    <table>
+      <tr><th colspan="2">🚫 ممنوعون من الدخول غداً (بقوا غائبين دون تسوية حتى آخر حصة)</th></tr>
+      <tr><th>التلميذ</th><th>القسم</th></tr>
+      ${s.barredToday.length ? s.barredToday.map(b => `<tr><td>${b.name}</td><td>${b.className}</td></tr>`).join("") : `<tr><td colspan="2">لا يوجد</td></tr>`}
+    </table>` : ""}
     <div class="sign">
       <div>إمضاء المكلّف بالغياب<div class="line">${todayISO()}</div></div>
       <div>إمضاء الناظر<div class="line">${todayISO()}</div></div>
