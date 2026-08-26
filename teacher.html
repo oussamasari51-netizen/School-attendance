@@ -73,12 +73,20 @@ async function init() {
   document.getElementById("dateLabel").textContent = fmtDate();
   document.getElementById("todayText").textContent = fmtDate();
 
-  let target = PERIODS.find(p => {
+  const todaysPeriods = getPeriodsForDay(todayISO());
+  if (todaysPeriods.length === 0) {
+    document.getElementById("gridTitle").textContent = "عطلة اليوم";
+    document.getElementById("classGrid").innerHTML = `<div class="empty-state"><div class="icon">🏖️</div>لا حصص مبرمجة اليوم.</div>`;
+    document.querySelector(".periods-rail").style.display = "none";
+    return;
+  }
+
+  let target = todaysPeriods.find(p => {
     const now = new Date(); const nowMin = now.getHours()*60+now.getMinutes();
     const [s,e] = p.time.split(/[–-]/).map(t => { const [h,m]=t.trim().split(":").map(Number); return h*60+m; });
     return nowMin >= s && nowMin <= e;
   });
-  selectedSlot = target ? target.slot : PERIODS[0].slot;
+  selectedSlot = target ? target.slot : todaysPeriods[0].slot;
   renderRail();
 
   const { data: classes } = await db.from("classes").select("id, name").order("name");
@@ -89,7 +97,7 @@ async function init() {
 function renderRail() {
   const track = document.getElementById("railTrack");
   track.innerHTML = "";
-  PERIODS.forEach(p => {
+  getPeriodsForDay(todayISO()).forEach(p => {
     const btn = document.createElement("button");
     btn.className = "rail-stop" + (selectedSlot === p.slot ? " active" : "");
     btn.innerHTML = `<div class="dot"></div><div class="label">${p.label}</div>`;
@@ -125,6 +133,7 @@ async function selectClass(cls) {
     .from("students")
     .select("id, full_name")
     .eq("class_id", cls.id)
+    .eq("active", true)
     .order("full_name");
 
   if (error) { showToast("خطأ في تحميل التلاميذ"); return; }
