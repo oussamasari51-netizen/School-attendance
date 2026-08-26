@@ -18,12 +18,22 @@ const PERIODS = [
   { slot: 7, label: "7", time: "15:00–16:00" },
 ];
 
+const SCHOOL_NAME = "متوسطة بوزراد حسين — عنابة";
+
 const STATUS_OPTIONS = [
   { value: "تسوية وضعية", cls: "opt-resolved" },
   { value: "خروج استثنائي", cls: "opt-pending" },
-  { value: "غياب مبرر", cls: "opt-pending" },
-  { value: "غائب", cls: "opt-absent" },
+  { value: "غياب بعذر مقبول", cls: "opt-pending" },
+  { value: "غياب بعذر غير مقبول", cls: "opt-absent" },
 ];
+
+// تصنيف كل حالة إلى فئات تقرير الوزارة الرسمية
+function reportCategory(status) {
+  if (status === "تسوية وضعية") return "resolved"; // لا يُحتسب كغياب إطلاقاً
+  if (status === "غياب بعذر مقبول" || status === "خروج استثنائي") return "justified";
+  if (status === "غياب بعذر غير مقبول") return "unjustified_explained";
+  return "no_excuse"; // الحالة الافتراضية "غائب" (لم يُبت في أمرها بعد)
+}
 
 function todayISO() {
   const d = new Date();
