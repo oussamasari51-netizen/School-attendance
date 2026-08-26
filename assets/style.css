@@ -330,4 +330,6 @@ input:focus, select:focus, button:focus-visible {
   .topbar { padding: 14px 16px; }
   .page { padding: 16px 14px 50px; }
   .rail-stop .label { font-size: 11px; }
+  .rail-track { overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  .rail-stop { flex: 0 0 52px; }
 }
