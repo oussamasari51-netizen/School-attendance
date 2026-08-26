@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إدارة التلاميذ — نظام الغيابات</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="icon">👥</div>
+    <div>
+      <h1>إدارة التلاميذ</h1>
+      <div class="meta">حذف/إعادة تفعيل تلميذ من قسم</div>
+    </div>
+  </div>
+  <div class="user-chip">
+    <span id="adminName">...</span>
+    <a href="admin.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">⟵ لوحة الناظر</a>
+    <button onclick="logout()">خروج</button>
+  </div>
+</div>
+
+<div class="page" style="max-width:760px;">
+
+  <div class="section-title" style="margin-top:0;">اختر القسم</div>
+  <div class="grid" id="classGrid">
+    <div class="loading-text">جاري التحميل...</div>
+  </div>
+
+  <div id="studentSection" style="display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin:22px 0 10px;">
+      <div class="section-title" id="classTitle" style="margin:0;"></div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink-soft);">
+        <input type="checkbox" id="showInactive"> إظهار المنسحبين أيضاً
+      </label>
+    </div>
+    <div class="student-list" id="studentList"></div>
+  </div>
+
+</div>
+
+<script src="assets/config.js"></script>
+<script>
+let profile = null;
+let selectedClass = null;
+
+async function init() {
+  profile = await requireSession("admin");
+  if (!profile) return;
+  document.getElementById("adminName").textContent = profile.full_name;
+
+  const { data: classes } = await db.from("classes").select("id, name").order("name");
+  const grid = document.getElementById("classGrid");
+  grid.innerHTML = "";
+  (classes || []).forEach(c => {
+    const card = document.createElement("div");
+    card.className = "class-card";
+    card.innerHTML = `<div class="cname">${c.name}</div><div class="stat zero"><span class="txt">اضغط لعرض التلاميذ</span></div>`;
+    card.onclick = () => selectClass(c);
+    grid.appendChild(card);
+  });
+}
+
+async function selectClass(cls) {
+  selectedClass = cls;
+  document.getElementById("studentSection").style.display = "block";
+  document.getElementById("classTitle").textContent = `تلاميذ ${cls.name}`;
+  await renderStudents();
+  document.getElementById("studentSection").scrollIntoView({ behavior: "smooth" });
+}
+
+document.getElementById("showInactive").addEventListener("change", renderStudents);
+
+async function renderStudents() {
+  if (!selectedClass) return;
+  const list = document.getElementById("studentList");
+  list.innerHTML = `<div class="loading-text">جاري التحميل...</div>`;
+
+  const showInactive = document.getElementById("showInactive").checked;
+  let query = db.from("students").select("id, full_name, active").eq("class_id", selectedClass.id).order("full_name");
+  if (!showInactive) query = query.eq("active", true);
+  const { data: students } = await query;
+
+  if (!students || students.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">👤</div>لا يوجد تلاميذ لعرضهم.</div>`;
+    return;
+  }
+
+  list.innerHTML = "";
+  students.forEach(s => {
+    const row = document.createElement("div");
+    row.className = "student-row";
+    row.innerHTML = `
+      <div class="sname" style="${s.active ? "" : "text-decoration:line-through; color:var(--ink-soft);"}">${s.full_name}</div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        ${!s.active ? `<span class="status-pill pending-exit">منسحب</span>` : ""}
+        <button class="btn-ghost" style="padding:7px 14px; font-size:12.5px; ${s.active ? "color:var(--absent); background:var(--absent-light);" : "color:var(--resolved); background:var(--resolved-light);"}">
+          ${s.active ? "حذف من القسم" : "إعادة تفعيل"}
+        </button>
+      </div>
+    `;
+    row.querySelector("button").onclick = () => toggleActive(s);
+    list.appendChild(row);
+  });
+}
+
+async function toggleActive(student) {
+  if (student.active) {
+    const ok = confirm(`هل أنت متأكد من حذف "${student.full_name}" من القسم؟\nسجل غياباته السابق سيبقى محفوظاً في التقارير.`);
+    if (!ok) return;
+  }
+  const { error } = await db.from("students").update({ active: !student.active }).eq("id", student.id);
+  if (error) { showToast("حدث خطأ"); return; }
+  showToast(student.active ? "تم حذف التلميذ من القسم" : "تمت إعادة التفعيل");
+  renderStudents();
+}
+
+init();
+</script>
+</body>
+</html>
