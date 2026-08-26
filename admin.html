@@ -20,6 +20,7 @@
   <div class="user-chip">
     <span id="adminName">...</span>
     <a href="import.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">📥 استيراد التلاميذ</a>
+    <a href="students.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">👥 إدارة التلاميذ</a>
     <button onclick="logout()">خروج</button>
   </div>
 </div>
@@ -105,10 +106,16 @@ async function init() {
   renderRail();
 
   // اختر الحصة الحالية تلقائياً، أو آخر حصة منتهية
-  let target = PERIODS.find(p => periodStatus(p) === "active");
+  const todaysPeriods = getPeriodsForDay(todayISO());
+  if (todaysPeriods.length === 0) {
+    document.getElementById("gridTitle").textContent = "عطلة اليوم";
+    document.getElementById("classGrid").innerHTML = `<div class="empty-state"><div class="icon">🏖️</div>لا حصص مبرمجة اليوم.</div>`;
+    return;
+  }
+  let target = todaysPeriods.find(p => periodStatus(p) === "active");
   if (!target) {
-    const doneOnes = PERIODS.filter(p => periodStatus(p) === "done");
-    target = doneOnes.length ? doneOnes[doneOnes.length - 1] : PERIODS[0];
+    const doneOnes = todaysPeriods.filter(p => periodStatus(p) === "done");
+    target = doneOnes.length ? doneOnes[doneOnes.length - 1] : todaysPeriods[0];
   }
   selectPeriod(target.slot);
 }
@@ -116,7 +123,12 @@ async function init() {
 function renderRail() {
   const track = document.getElementById("railTrack");
   track.innerHTML = "";
-  PERIODS.forEach(p => {
+  const todaysPeriods = getPeriodsForDay(todayISO());
+  if (todaysPeriods.length === 0) {
+    track.innerHTML = `<div class="loading-text" style="padding:8px 0;">عطلة اليوم — لا حصص مبرمجة</div>`;
+    return;
+  }
+  todaysPeriods.forEach(p => {
     const st = periodStatus(p);
     const btn = document.createElement("button");
     btn.className = "rail-stop " + st + (selectedSlot === p.slot ? " active" : "");
@@ -189,7 +201,7 @@ async function renderDetailList() {
     const row = document.createElement("div");
     row.className = "student-row";
     const cat = reportCategory(r.status);
-    const pillClass = cat === "resolved" ? "resolved" : (cat === "justified" ? "pending-exit" : "absent");
+    const pillClass = cat === "resolved" ? "resolved" : (cat === "exit" ? "pending-exit" : "absent");
     row.innerHTML = `
       <div class="sname">${r.students.full_name}</div>
       <div style="display:flex; align-items:center; gap:8px;">
