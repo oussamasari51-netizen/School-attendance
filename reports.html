@@ -75,7 +75,7 @@
         </table>
       </div>
       <div class="panel">
-        <h3>ملخص الحالة</h3>
+        <h3>توزيع الغيابات حسب الأقسام</h3>
         <canvas id="statusChart" height="200"></canvas>
       </div>
     </div>
@@ -314,17 +314,28 @@ function renderBarredList(s, isMonthly) {
     </table>`;
 }
 
+const CLASS_PALETTE = ["#2F5D62","#C0392B","#D68C21","#3F7D5C","#8E5EA2","#4472C4","#B07AA1","#59A14F","#EDC948","#AF7AA1","#FF9D9A","#9C755F"];
+
 function renderStatusChart(s) {
   const ctx = document.getElementById("statusChart");
-  const data = [s.statusCounts.plain, s.statusCounts.exit];
+  const withAbsences = s.classRows.filter(c => c.absent > 0).sort((a, b) => b.absent - a.absent);
+  const top = withAbsences.slice(0, 7);
+  const rest = withAbsences.slice(7);
+  const labels = top.map(c => c.name);
+  const data = top.map(c => c.absent);
+  if (rest.length > 0) {
+    labels.push("أقسام أخرى");
+    data.push(rest.reduce((sum, c) => sum + c.absent, 0));
+  }
   if (statusChartInst) statusChartInst.destroy();
+  if (data.length === 0) {
+    ctx.getContext("2d").clearRect(0, 0, ctx.width, ctx.height);
+    return;
+  }
   statusChartInst = new Chart(ctx, {
     type: "doughnut",
-    data: {
-      labels: ["غياب", "خروج استثنائي"],
-      datasets: [{ data, backgroundColor: ["#C0392B", "#D68C21"] }]
-    },
-    options: { plugins: { legend: { position: "bottom", labels: { font: { family: "Tajawal" } } } } }
+    data: { labels, datasets: [{ data, backgroundColor: CLASS_PALETTE }] },
+    options: { plugins: { legend: { position: "bottom", labels: { font: { family: "Tajawal" }, boxWidth: 12 } } } }
   });
 }
 
