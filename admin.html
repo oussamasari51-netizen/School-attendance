@@ -30,7 +30,7 @@
   <div class="periods-rail">
     <div class="rail-head">
       <h2>خط الحصص</h2>
-      <span class="date" id="todayText"></span>
+      <input type="date" id="datePicker" class="datepick-inline">
     </div>
     <div class="rail-track" id="railTrack"></div>
   </div>
@@ -68,11 +68,12 @@
 let profile = null;
 let selectedSlot = null;
 let selectedClass = null;
+let selectedDate = null;
 let classesCache = [];
 const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
-function fmtDate() {
-  const d = new Date();
+function fmtDateOf(iso) {
+  const d = new Date(iso + "T00:00:00");
   return `${dayNames[d.getDay()]} — ${d.toLocaleDateString("ar-DZ")}`;
 }
 
@@ -84,6 +85,8 @@ function parseTime(str) {
 }
 
 function periodStatus(p) {
+  if (selectedDate < todayISO()) return "done";
+  if (selectedDate > todayISO()) return "pending";
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const { start, end } = parseTime(p.time);
@@ -97,25 +100,39 @@ async function init() {
   if (!profile) return;
 
   document.getElementById("adminName").textContent = profile.full_name;
-  document.getElementById("dateLabel").textContent = fmtDate();
-  document.getElementById("todayText").textContent = fmtDate();
+
+  selectedDate = todayISO();
+  const picker = document.getElementById("datePicker");
+  picker.value = selectedDate;
+  picker.max = todayISO();
+  picker.addEventListener("change", onDateChange);
 
   const { data: classes } = await db.from("classes").select("id, name").order("name");
   classesCache = classes || [];
 
+  loadDay();
+}
+
+function onDateChange() {
+  selectedDate = document.getElementById("datePicker").value || todayISO();
+  document.getElementById("detailSection").style.display = "none";
+  loadDay();
+}
+
+function loadDay() {
+  document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
   renderRail();
 
-  // اختر الحصة الحالية تلقائياً، أو آخر حصة منتهية
-  const todaysPeriods = getPeriodsForDay(todayISO());
-  if (todaysPeriods.length === 0) {
-    document.getElementById("gridTitle").textContent = "عطلة اليوم";
-    document.getElementById("classGrid").innerHTML = `<div class="empty-state"><div class="icon">🏖️</div>لا حصص مبرمجة اليوم.</div>`;
+  const dayPeriods = getPeriodsForDay(selectedDate);
+  if (dayPeriods.length === 0) {
+    document.getElementById("gridTitle").textContent = "عطلة في هذا اليوم";
+    document.getElementById("classGrid").innerHTML = `<div class="empty-state"><div class="icon">🏖️</div>لا حصص مبرمجة في هذا اليوم.</div>`;
     return;
   }
-  let target = todaysPeriods.find(p => periodStatus(p) === "active");
+  let target = dayPeriods.find(p => periodStatus(p) === "active");
   if (!target) {
-    const doneOnes = todaysPeriods.filter(p => periodStatus(p) === "done");
-    target = doneOnes.length ? doneOnes[doneOnes.length - 1] : todaysPeriods[0];
+    const doneOnes = dayPeriods.filter(p => periodStatus(p) === "done");
+    target = doneOnes.length ? doneOnes[doneOnes.length - 1] : dayPeriods[0];
   }
   selectPeriod(target.slot);
 }
@@ -123,12 +140,12 @@ async function init() {
 function renderRail() {
   const track = document.getElementById("railTrack");
   track.innerHTML = "";
-  const todaysPeriods = getPeriodsForDay(todayISO());
-  if (todaysPeriods.length === 0) {
-    track.innerHTML = `<div class="loading-text" style="padding:8px 0;">عطلة اليوم — لا حصص مبرمجة</div>`;
+  const dayPeriods = getPeriodsForDay(selectedDate);
+  if (dayPeriods.length === 0) {
+    track.innerHTML = `<div class="loading-text" style="padding:8px 0;">عطلة — لا حصص مبرمجة في هذا اليوم</div>`;
     return;
   }
-  todaysPeriods.forEach(p => {
+  dayPeriods.forEach(p => {
     const st = periodStatus(p);
     const btn = document.createElement("button");
     btn.className = "rail-stop " + st + (selectedSlot === p.slot ? " active" : "");
@@ -151,7 +168,7 @@ async function selectPeriod(slot) {
   const { data: records } = await db
     .from("attendance_records")
     .select("class_id, status")
-    .eq("record_date", todayISO())
+    .eq("record_date", selectedDate)
     .eq("hour_slot", slot);
 
   grid.innerHTML = "";
@@ -187,7 +204,7 @@ async function renderDetailList() {
     .from("attendance_records")
     .select("id, status, students(id, full_name)")
     .eq("class_id", selectedClass.id)
-    .eq("record_date", todayISO())
+    .eq("record_date", selectedDate)
     .eq("hour_slot", selectedSlot)
     .order("created_at");
 
