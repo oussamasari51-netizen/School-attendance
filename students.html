@@ -32,21 +32,53 @@
   </div>
 
   <div id="studentSection" style="display:none;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin:22px 0 10px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin:22px 0 10px; flex-wrap:wrap; gap:10px;">
       <div class="section-title" id="classTitle" style="margin:0;"></div>
-      <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink-soft);">
-        <input type="checkbox" id="showInactive"> إظهار المنسحبين أيضاً
-      </label>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--ink-soft);">
+          <input type="checkbox" id="showInactive"> إظهار المنسحبين أيضاً
+        </label>
+        <button class="btn-primary" id="addStudentBtn" style="padding:9px 16px; font-size:13px;">+ إضافة تلميذ</button>
+      </div>
     </div>
     <div class="student-list" id="studentList"></div>
   </div>
 
 </div>
 
+<!-- نافذة إضافة تلميذ -->
+<div class="modal-backdrop" id="addModal">
+  <div class="modal-sheet">
+    <h3>إضافة تلميذ جديد</h3>
+    <p class="msub" id="addModalSub"></p>
+    <div class="field">
+      <label>الاسم الكامل</label>
+      <input type="text" id="newStudentName" placeholder="اللقب والاسم">
+    </div>
+    <button class="btn-primary" id="confirmAddBtn" style="width:100%; margin-top:8px;">إضافة</button>
+    <div class="modal-close-row">
+      <button class="btn-ghost" onclick="closeAddModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة تغيير القسم -->
+<div class="modal-backdrop" id="moveModal">
+  <div class="modal-sheet">
+    <h3 id="moveModalTitle"></h3>
+    <p class="msub">اختر القسم الجديد</p>
+    <div class="option-list" id="moveOptionList"></div>
+    <div class="modal-close-row">
+      <button class="btn-ghost" onclick="closeMoveModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
 <script src="assets/config.js"></script>
 <script>
 let profile = null;
 let selectedClass = null;
+let allClasses = [];
 
 async function init() {
   profile = await requireSession("admin");
@@ -54,9 +86,10 @@ async function init() {
   document.getElementById("adminName").textContent = profile.full_name;
 
   const { data: classes } = await db.from("classes").select("id, name").order("name");
+  allClasses = classes || [];
   const grid = document.getElementById("classGrid");
   grid.innerHTML = "";
-  (classes || []).forEach(c => {
+  allClasses.forEach(c => {
     const card = document.createElement("div");
     card.className = "class-card";
     card.innerHTML = `<div class="cname">${c.name}</div><div class="stat zero"><span class="txt">اضغط لعرض التلاميذ</span></div>`;
@@ -98,12 +131,15 @@ async function renderStudents() {
       <div class="sname" style="${s.active ? "" : "text-decoration:line-through; color:var(--ink-soft);"}">${s.full_name}</div>
       <div style="display:flex; align-items:center; gap:8px;">
         ${!s.active ? `<span class="status-pill pending-exit">منسحب</span>` : ""}
+        ${s.active ? `<button class="btn-ghost move-btn" style="padding:7px 12px; font-size:12.5px;">تغيير القسم</button>` : ""}
         <button class="btn-ghost" style="padding:7px 14px; font-size:12.5px; ${s.active ? "color:var(--absent); background:var(--absent-light);" : "color:var(--resolved); background:var(--resolved-light);"}">
           ${s.active ? "حذف من القسم" : "إعادة تفعيل"}
         </button>
       </div>
     `;
-    row.querySelector("button").onclick = () => toggleActive(s);
+    row.querySelector("button:last-child").onclick = () => toggleActive(s);
+    const moveBtn = row.querySelector(".move-btn");
+    if (moveBtn) moveBtn.onclick = () => openMoveModal(s);
     list.appendChild(row);
   });
 }
@@ -116,6 +152,57 @@ async function toggleActive(student) {
   const { error } = await db.from("students").update({ active: !student.active }).eq("id", student.id);
   if (error) { showToast("حدث خطأ"); return; }
   showToast(student.active ? "تم حذف التلميذ من القسم" : "تمت إعادة التفعيل");
+  renderStudents();
+}
+
+// ===== إضافة تلميذ =====
+document.getElementById("addStudentBtn").addEventListener("click", () => {
+  document.getElementById("addModalSub").textContent = `سيُضاف إلى قسم ${selectedClass.name}`;
+  document.getElementById("newStudentName").value = "";
+  document.getElementById("addModal").classList.add("open");
+});
+function closeAddModal() { document.getElementById("addModal").classList.remove("open"); }
+document.getElementById("addModal").addEventListener("click", (e) => { if (e.target.id === "addModal") closeAddModal(); });
+
+document.getElementById("confirmAddBtn").addEventListener("click", async () => {
+  const name = document.getElementById("newStudentName").value.trim();
+  if (!name) { showToast("اكتب اسم التلميذ أولاً"); return; }
+  const btn = document.getElementById("confirmAddBtn");
+  btn.disabled = true; btn.textContent = "جاري الإضافة...";
+
+  const { error } = await db.from("students").insert({ full_name: name, class_id: selectedClass.id, active: true });
+
+  btn.disabled = false; btn.textContent = "إضافة";
+  if (error) { showToast("حدث خطأ أثناء الإضافة"); return; }
+  showToast("تمت إضافة التلميذ بنجاح ✓");
+  closeAddModal();
+  renderStudents();
+});
+
+// ===== تغيير القسم =====
+let movingStudent = null;
+function openMoveModal(student) {
+  movingStudent = student;
+  document.getElementById("moveModalTitle").textContent = `نقل "${student.full_name}"`;
+  const list = document.getElementById("moveOptionList");
+  list.innerHTML = "";
+  allClasses.filter(c => c.id !== selectedClass.id).forEach(c => {
+    const btn = document.createElement("button");
+    btn.className = "option-btn";
+    btn.textContent = c.name;
+    btn.onclick = () => confirmMove(c);
+    list.appendChild(btn);
+  });
+  document.getElementById("moveModal").classList.add("open");
+}
+function closeMoveModal() { document.getElementById("moveModal").classList.remove("open"); }
+document.getElementById("moveModal").addEventListener("click", (e) => { if (e.target.id === "moveModal") closeMoveModal(); });
+
+async function confirmMove(newClass) {
+  const { error } = await db.from("students").update({ class_id: newClass.id }).eq("id", movingStudent.id);
+  closeMoveModal();
+  if (error) { showToast("حدث خطأ أثناء النقل"); return; }
+  showToast(`تم نقل التلميذ إلى ${newClass.name}`);
   renderStudents();
 }
 
