@@ -28,7 +28,7 @@
   <div class="periods-rail">
     <div class="rail-head">
       <h2>اختر الحصة</h2>
-      <span class="date" id="todayText"></span>
+      <input type="date" id="datePicker" class="datepick-inline">
     </div>
     <div class="rail-track" id="railTrack"></div>
   </div>
@@ -54,14 +54,15 @@
 let profile = null;
 let selectedSlot = null;
 let selectedClass = null;
+let selectedDate = null;
 let classesCache = [];
 let currentStudents = [];
 let checkedIds = new Set();
 
 const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
-function fmtDate() {
-  const d = new Date();
+function fmtDateOf(iso) {
+  const d = new Date(iso + "T00:00:00");
   return `${dayNames[d.getDay()]} — ${d.toLocaleDateString("ar-DZ")}`;
 }
 
@@ -70,34 +71,55 @@ async function init() {
   if (!profile) return;
 
   document.getElementById("teacherName").textContent = profile.full_name;
-  document.getElementById("dateLabel").textContent = fmtDate();
-  document.getElementById("todayText").textContent = fmtDate();
-
-  const todaysPeriods = getPeriodsForDay(todayISO());
-  if (todaysPeriods.length === 0) {
-    document.getElementById("gridTitle").textContent = "عطلة اليوم";
-    document.getElementById("classGrid").innerHTML = `<div class="empty-state"><div class="icon">🏖️</div>لا حصص مبرمجة اليوم.</div>`;
-    document.querySelector(".periods-rail").style.display = "none";
-    return;
-  }
-
-  let target = todaysPeriods.find(p => {
-    const now = new Date(); const nowMin = now.getHours()*60+now.getMinutes();
-    const [s,e] = p.time.split(/[–-]/).map(t => { const [h,m]=t.trim().split(":").map(Number); return h*60+m; });
-    return nowMin >= s && nowMin <= e;
-  });
-  selectedSlot = target ? target.slot : todaysPeriods[0].slot;
-  renderRail();
+  selectedDate = todayISO();
+  const picker = document.getElementById("datePicker");
+  picker.value = selectedDate;
+  picker.max = todayISO(); // لا يمكن تسجيل غياب ليوم لم يأتِ بعد
+  picker.addEventListener("change", onDateChange);
 
   const { data: classes } = await db.from("classes").select("id, name").order("name");
   classesCache = classes || [];
+
+  loadDay();
+}
+
+function onDateChange() {
+  selectedDate = document.getElementById("datePicker").value || todayISO();
+  selectedClass = null;
+  document.getElementById("classSection").style.display = "none";
+  loadDay();
+}
+
+function loadDay() {
+  document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
+
+  const dayPeriods = getPeriodsForDay(selectedDate);
+  document.querySelector(".periods-rail").style.display = "block";
+  if (dayPeriods.length === 0) {
+    document.getElementById("gridTitle").textContent = "عطلة في هذا اليوم";
+    document.getElementById("classGrid").innerHTML = `<div class="empty-state"><div class="icon">🏖️</div>لا حصص مبرمجة في هذا اليوم.</div>`;
+    document.getElementById("railTrack").innerHTML = "";
+    return;
+  }
+
+  let target = null;
+  if (selectedDate === todayISO()) {
+    target = dayPeriods.find(p => {
+      const now = new Date(); const nowMin = now.getHours()*60+now.getMinutes();
+      const [s,e] = p.time.split(/[–-]/).map(t => { const [h,m]=t.trim().split(":").map(Number); return h*60+m; });
+      return nowMin >= s && nowMin <= e;
+    });
+  }
+  selectedSlot = target ? target.slot : dayPeriods[0].slot;
+  renderRail();
+  document.getElementById("gridTitle").textContent = "اختر القسم";
   renderClassGrid();
 }
 
 function renderRail() {
   const track = document.getElementById("railTrack");
   track.innerHTML = "";
-  getPeriodsForDay(todayISO()).forEach(p => {
+  getPeriodsForDay(selectedDate).forEach(p => {
     const btn = document.createElement("button");
     btn.className = "rail-stop" + (selectedSlot === p.slot ? " active" : "");
     btn.innerHTML = `<div class="dot"></div><div class="label">${p.label}</div>`;
@@ -143,7 +165,7 @@ async function selectClass(cls) {
     .from("attendance_records")
     .select("student_id, status")
     .eq("class_id", cls.id)
-    .eq("record_date", todayISO())
+    .eq("record_date", selectedDate)
     .eq("hour_slot", selectedSlot);
 
   checkedIds = new Set((existing || []).filter(r => r.status === "غائب").map(r => r.student_id));
@@ -201,7 +223,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
   btn.textContent = "جاري الإرسال...";
 
   const classId = selectedClass.id;
-  const date = todayISO();
+  const date = selectedDate;
   const existing = window.__existingRecords || [];
 
   const toInsert = [];
