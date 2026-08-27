@@ -184,6 +184,7 @@ input:focus, select:focus, button:focus-visible {
 }
 .periods-rail .rail-head h2 { font-size: 16px; }
 .periods-rail .rail-head .date { font-size: 13px; color: var(--ink-soft); }
+.datepick-inline { width: auto; padding: 8px 12px; font-size: 13px; }
 .rail-track { display: flex; gap: 8px; }
 .rail-stop {
   flex: 1;
