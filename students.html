@@ -19,6 +19,7 @@
   </div>
   <div class="user-chip">
     <span id="adminName">...</span>
+    <a href="census.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">📊 الحساب الدوري</a>
     <a href="admin.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">⟵ لوحة الناظر</a>
     <button onclick="logout()">خروج</button>
   </div>
@@ -55,6 +56,10 @@
       <label>الاسم الكامل</label>
       <input type="text" id="newStudentName" placeholder="اللقب والاسم">
     </div>
+    <div class="field">
+      <label>تاريخ التسجيل</label>
+      <input type="date" id="newStudentDate">
+    </div>
     <button class="btn-primary" id="confirmAddBtn" style="width:100%; margin-top:8px;">إضافة</button>
     <div class="modal-close-row">
       <button class="btn-ghost" onclick="closeAddModal()">إلغاء</button>
@@ -70,6 +75,30 @@
     <div class="option-list" id="moveOptionList"></div>
     <div class="modal-close-row">
       <button class="btn-ghost" onclick="closeMoveModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة سبب الخروج -->
+<div class="modal-backdrop" id="withdrawModal">
+  <div class="modal-sheet">
+    <h3 id="withdrawModalTitle"></h3>
+    <p class="msub">اختر سبب الخروج وتاريخه</p>
+    <div class="field">
+      <label>السبب</label>
+      <select id="withdrawReason">
+        <option value="تحويل مؤسسة">تحويل مؤسسة</option>
+        <option value="انقطاع عن الدراسة">انقطاع عن الدراسة</option>
+        <option value="أخرى">أخرى</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>تاريخ الخروج</label>
+      <input type="date" id="withdrawDate">
+    </div>
+    <button class="btn-primary" id="confirmWithdrawBtn" style="width:100%; margin-top:8px; background:var(--absent);">تأكيد الحذف من القسم</button>
+    <div class="modal-close-row">
+      <button class="btn-ghost" onclick="closeWithdrawModal()">إلغاء</button>
     </div>
   </div>
 </div>
@@ -114,7 +143,7 @@ async function renderStudents() {
   list.innerHTML = `<div class="loading-text">جاري التحميل...</div>`;
 
   const showInactive = document.getElementById("showInactive").checked;
-  let query = db.from("students").select("id, full_name, active").eq("class_id", selectedClass.id).order("full_name");
+  let query = db.from("students").select("id, full_name, active, enrollment_date, withdrawal_date, withdrawal_reason").eq("class_id", selectedClass.id).order("full_name");
   if (!showInactive) query = query.eq("active", true);
   const { data: students } = await query;
 
@@ -127,8 +156,13 @@ async function renderStudents() {
   students.forEach(s => {
     const row = document.createElement("div");
     row.className = "student-row";
+    const subInfo = !s.active && s.withdrawal_date
+      ? `<div class="sinfo">${s.withdrawal_reason || ""} — ${s.withdrawal_date}</div>` : "";
     row.innerHTML = `
-      <div class="sname" style="${s.active ? "" : "text-decoration:line-through; color:var(--ink-soft);"}">${s.full_name}</div>
+      <div>
+        <div class="sname" style="${s.active ? "" : "text-decoration:line-through; color:var(--ink-soft);"}">${s.full_name}</div>
+        ${subInfo}
+      </div>
       <div style="display:flex; align-items:center; gap:8px;">
         ${!s.active ? `<span class="status-pill pending-exit">منسحب</span>` : ""}
         ${s.active ? `<button class="btn-ghost move-btn" style="padding:7px 12px; font-size:12.5px;">تغيير القسم</button>` : ""}
@@ -146,19 +180,44 @@ async function renderStudents() {
 
 async function toggleActive(student) {
   if (student.active) {
-    const ok = confirm(`هل أنت متأكد من حذف "${student.full_name}" من القسم؟\nسجل غياباته السابق سيبقى محفوظاً في التقارير.`);
-    if (!ok) return;
+    document.getElementById("withdrawModalTitle").textContent = `حذف "${student.full_name}" من القسم`;
+    document.getElementById("withdrawDate").value = todayISO();
+    document.getElementById("withdrawDate").max = todayISO();
+    document.getElementById("withdrawReason").value = "تحويل مؤسسة";
+    window.__withdrawTarget = student;
+    document.getElementById("withdrawModal").classList.add("open");
+    return;
   }
-  const { error } = await db.from("students").update({ active: !student.active }).eq("id", student.id);
+  // إعادة تفعيل مباشرة
+  const { error } = await db.from("students").update({ active: true, withdrawal_date: null, withdrawal_reason: null }).eq("id", student.id);
   if (error) { showToast("حدث خطأ"); return; }
-  showToast(student.active ? "تم حذف التلميذ من القسم" : "تمت إعادة التفعيل");
+  showToast("تمت إعادة التفعيل");
   renderStudents();
 }
+
+function closeWithdrawModal() { document.getElementById("withdrawModal").classList.remove("open"); }
+document.getElementById("withdrawModal").addEventListener("click", (e) => { if (e.target.id === "withdrawModal") closeWithdrawModal(); });
+
+document.getElementById("confirmWithdrawBtn").addEventListener("click", async () => {
+  const student = window.__withdrawTarget;
+  if (!student) return;
+  const reason = document.getElementById("withdrawReason").value;
+  const date = document.getElementById("withdrawDate").value || todayISO();
+  const { error } = await db.from("students")
+    .update({ active: false, withdrawal_date: date, withdrawal_reason: reason })
+    .eq("id", student.id);
+  closeWithdrawModal();
+  if (error) { showToast("حدث خطأ"); return; }
+  showToast("تم حذف التلميذ من القسم");
+  renderStudents();
+});
 
 // ===== إضافة تلميذ =====
 document.getElementById("addStudentBtn").addEventListener("click", () => {
   document.getElementById("addModalSub").textContent = `سيُضاف إلى قسم ${selectedClass.name}`;
   document.getElementById("newStudentName").value = "";
+  document.getElementById("newStudentDate").value = todayISO();
+  document.getElementById("newStudentDate").max = todayISO();
   document.getElementById("addModal").classList.add("open");
 });
 function closeAddModal() { document.getElementById("addModal").classList.remove("open"); }
@@ -170,7 +229,8 @@ document.getElementById("confirmAddBtn").addEventListener("click", async () => {
   const btn = document.getElementById("confirmAddBtn");
   btn.disabled = true; btn.textContent = "جاري الإضافة...";
 
-  const { error } = await db.from("students").insert({ full_name: name, class_id: selectedClass.id, active: true });
+  const enrollDate = document.getElementById("newStudentDate").value || todayISO();
+  const { error } = await db.from("students").insert({ full_name: name, class_id: selectedClass.id, active: true, enrollment_date: enrollDate });
 
   btn.disabled = false; btn.textContent = "إضافة";
   if (error) { showToast("حدث خطأ أثناء الإضافة"); return; }
@@ -208,5 +268,6 @@ async function confirmMove(newClass) {
 
 init();
 </script>
+<div class="app-footer">© جميع الحقوق محفوظة — ساري أسامة 2027</div>
 </body>
 </html>
