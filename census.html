@@ -203,7 +203,7 @@ document.getElementById("printCensusBtn").addEventListener("click", () => {
     .line{border-top:1px solid #333; margin-top:36px;}
   </style></head><body>
     <h1>${SCHOOL_NAME}</h1>
-    <div class="sub">الحساب الدوري لتعداد التلاميذ بتاريخ ${c.date}</div>
+    <div class="sub">السنة الدراسية ${SCHOOL_YEAR} — الحساب الدوري لتعداد التلاميذ بتاريخ ${c.date}</div>
     <table>
       <tr><th>القسم</th><th>عدد التلاميذ</th></tr>
       ${c.rows.map(r => `<tr><td>${r.name}</td><td>${r.count}</td></tr>`).join("")}
@@ -222,6 +222,6 @@ document.getElementById("printCensusBtn").addEventListener("click", () => {
 
 init();
 </script>
-<div class="app-footer">© جميع الحقوق محفوظة — ساري أسامة 2027</div>
+<div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
 </body>
 </html>
