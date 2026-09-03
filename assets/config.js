@@ -39,6 +39,8 @@ function lastPeriodOfDay(dateOrDow) {
 }
 
 const SCHOOL_NAME = "متوسطة بوزراد حسين — عنابة";
+const APP_NAME = "برنامج الناظر";
+const SCHOOL_YEAR = "2026-2027"; // عدّل هذا كل بداية سنة دراسية
 
 const STATUS_OPTIONS = [
   { value: "تسوية وضعية", cls: "opt-resolved" },
