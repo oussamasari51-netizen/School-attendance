@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الأساتذة — برنامج الناظر</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="icon">🧑‍🏫</div>
+    <div>
+      <h1>الأساتذة</h1>
+      <div class="meta">البيانات، مسؤولو المواد، ومسؤولو الأقسام</div>
+    </div>
+  </div>
+  <div class="user-chip">
+    <span id="adminName">...</span>
+    <a href="admin.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">⟵ لوحة الناظر</a>
+    <button onclick="logout()">خروج</button>
+  </div>
+</div>
+
+<div class="page" style="max-width:820px;">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn-ghost" id="printSubjectBtn">🖨️ طباعة قائمة مسؤولي المواد</button>
+      <button class="btn-ghost" id="printClassBtn">🖨️ طباعة قائمة مسؤولي الأقسام</button>
+    </div>
+    <button class="btn-primary" id="addTeacherBtn">+ إضافة أستاذ</button>
+  </div>
+
+  <div class="student-list" id="teacherList">
+    <div class="loading-text">جاري التحميل...</div>
+  </div>
+
+</div>
+
+<!-- نافذة إضافة/تعديل أستاذ -->
+<div class="modal-backdrop" id="teacherModal">
+  <div class="modal-sheet">
+    <h3 id="teacherModalTitle">إضافة أستاذ</h3>
+    <div class="field">
+      <label>الاسم الكامل</label>
+      <input type="text" id="tName" placeholder="اللقب والاسم">
+    </div>
+    <div class="field">
+      <label>المادة</label>
+      <input type="text" id="tSubject" placeholder="مثال: رياضيات">
+    </div>
+    <div class="field" style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="tSubjectHead" style="width:auto;">
+      <label style="margin:0;">مسؤول مادة</label>
+    </div>
+    <div class="field" style="display:flex; align-items:center; gap:8px;">
+      <input type="checkbox" id="tClassHead" style="width:auto;">
+      <label style="margin:0;">مسؤول قسم</label>
+    </div>
+    <div class="field" id="tClassField" style="display:none;">
+      <label>القسم المسؤول عنه</label>
+      <select id="tClassSelect"></select>
+    </div>
+    <button class="btn-primary" id="confirmTeacherBtn" style="width:100%; margin-top:8px;">حفظ</button>
+    <div class="modal-close-row">
+      <button class="btn-ghost" onclick="closeTeacherModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/config.js"></script>
+<script>
+let profile = null;
+let allClasses = [];
+let allTeachers = [];
+let editingId = null;
+
+async function init() {
+  profile = await requireSession("admin");
+  if (!profile) return;
+  document.getElementById("adminName").textContent = profile.full_name;
+
+  const { data: classes } = await db.from("classes").select("id, name").order("name");
+  allClasses = classes || [];
+  const sel = document.getElementById("tClassSelect");
+  sel.innerHTML = allClasses.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+
+  await loadTeachers();
+}
+
+async function loadTeachers() {
+  const list = document.getElementById("teacherList");
+  list.innerHTML = `<div class="loading-text">جاري التحميل...</div>`;
+  const { data } = await db.from("teachers").select("id, full_name, subject, is_subject_head, is_class_head, class_id, classes(name)").order("full_name");
+  allTeachers = data || [];
+  renderList();
+}
+
+function renderList() {
+  const list = document.getElementById("teacherList");
+  if (allTeachers.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">🧑‍🏫</div>لا يوجد أساتذة مسجّلون بعد.</div>`;
+    return;
+  }
+  list.innerHTML = "";
+  allTeachers.forEach(t => {
+    const row = document.createElement("div");
+    row.className = "student-row";
+    const badges = [];
+    if (t.is_subject_head) badges.push(`<span class="status-pill resolved">مسؤول مادة</span>`);
+    if (t.is_class_head) badges.push(`<span class="status-pill pending-exit">مسؤول قسم${t.classes ? " — " + t.classes.name : ""}</span>`);
+    row.innerHTML = `
+      <div>
+        <div class="sname">${t.full_name}</div>
+        <div class="sinfo">${t.subject || ""}</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        ${badges.join("")}
+        <button class="btn-ghost edit-btn" style="padding:6px 12px; font-size:12.5px;">تعديل</button>
+        <button class="btn-ghost del-btn" style="padding:6px 12px; font-size:12.5px; color:var(--absent); background:var(--absent-light);">حذف</button>
+      </div>
+    `;
+    row.querySelector(".edit-btn").onclick = () => openTeacherModal(t);
+    row.querySelector(".del-btn").onclick = () => deleteTeacher(t);
+    list.appendChild(row);
+  });
+}
+
+document.getElementById("tClassHead").addEventListener("change", (e) => {
+  document.getElementById("tClassField").style.display = e.target.checked ? "block" : "none";
+});
+
+document.getElementById("addTeacherBtn").addEventListener("click", () => openTeacherModal(null));
+
+function openTeacherModal(t) {
+  editingId = t ? t.id : null;
+  document.getElementById("teacherModalTitle").textContent = t ? "تعديل بيانات أستاذ" : "إضافة أستاذ";
+  document.getElementById("tName").value = t ? t.full_name : "";
+  document.getElementById("tSubject").value = t ? (t.subject || "") : "";
+  document.getElementById("tSubjectHead").checked = t ? t.is_subject_head : false;
+  document.getElementById("tClassHead").checked = t ? t.is_class_head : false;
+  document.getElementById("tClassField").style.display = (t && t.is_class_head) ? "block" : "none";
+  if (t && t.class_id) document.getElementById("tClassSelect").value = t.class_id;
+  document.getElementById("teacherModal").classList.add("open");
+}
+function closeTeacherModal() { document.getElementById("teacherModal").classList.remove("open"); }
+document.getElementById("teacherModal").addEventListener("click", (e) => { if (e.target.id === "teacherModal") closeTeacherModal(); });
+
+document.getElementById("confirmTeacherBtn").addEventListener("click", async () => {
+  const name = document.getElementById("tName").value.trim();
+  if (!name) { showToast("اكتب اسم الأستاذ أولاً"); return; }
+  const isClassHead = document.getElementById("tClassHead").checked;
+  const payload = {
+    full_name: name,
+    subject: document.getElementById("tSubject").value.trim() || null,
+    is_subject_head: document.getElementById("tSubjectHead").checked,
+    is_class_head: isClassHead,
+    class_id: isClassHead ? document.getElementById("tClassSelect").value : null,
+  };
+
+  const btn = document.getElementById("confirmTeacherBtn");
+  btn.disabled = true; btn.textContent = "جاري الحفظ...";
+
+  const { error } = editingId
+    ? await db.from("teachers").update(payload).eq("id", editingId)
+    : await db.from("teachers").insert(payload);
+
+  btn.disabled = false; btn.textContent = "حفظ";
+  if (error) { showToast("حدث خطأ أثناء الحفظ"); return; }
+  showToast("تم الحفظ بنجاح ✓");
+  closeTeacherModal();
+  loadTeachers();
+});
+
+async function deleteTeacher(t) {
+  if (!confirm(`هل تريد حذف "${t.full_name}" نهائياً؟`)) return;
+  const { error } = await db.from("teachers").delete().eq("id", t.id);
+  if (error) { showToast("حدث خطأ"); return; }
+  showToast("تم الحذف");
+  loadTeachers();
+}
+
+function printList(filterFn, title) {
+  const rows = allTeachers.filter(filterFn);
+  let html = `
+  <html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>${title}</title>
+  <style>
+    body{font-family:Arial,Tahoma,sans-serif; padding:26px; color:#111;}
+    .head{display:flex; justify-content:space-between; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:16px; font-size:13px;}
+    h1{font-size:18px; text-align:center; margin:6px 0 20px;}
+    table{width:100%; border-collapse:collapse;}
+    th,td{border:1px solid #999; padding:8px 10px; text-align:center; font-size:13px;}
+    th{background:#eee;}
+    .sign{display:flex; justify-content:space-between; margin-top:50px; font-size:13px;}
+    .sign div{text-align:center; width:30%;}
+    .line{border-top:1px solid #333; margin-top:36px;}
+  </style></head><body>
+    <div class="head"><span>${SCHOOL_NAME}<br>السنة الدراسية: ${SCHOOL_YEAR}</span><span>الجمهورية الجزائرية الديمقراطية الشعبية<br>وزارة التربية الوطنية</span></div>
+    <h1>${title}</h1>
+    <table>
+      <tr><th>الرقم</th><th>الاسم واللقب</th><th>المادة</th>${title.includes("الأقسام") ? "<th>القسم</th>" : ""}</tr>
+      ${rows.map((t, i) => `<tr><td>${i + 1}</td><td>${t.full_name}</td><td>${t.subject || ""}</td>${title.includes("الأقسام") ? `<td>${t.classes ? t.classes.name : ""}</td>` : ""}</tr>`).join("")}
+    </table>
+    <div class="sign">
+      <div>إمضاء مستشار التربية<div class="line"></div></div>
+      <div>إمضاء المدير<div class="line"></div></div>
+      <div>ختم المؤسسة<div class="line"></div></div>
+    </div>
+  </body></html>`;
+  const w = window.open("", "_blank");
+  w.document.write(html);
+  w.document.close();
+}
+
+document.getElementById("printSubjectBtn").addEventListener("click", () => {
+  printList(t => t.is_subject_head, "قائمة مسؤولي المواد");
+});
+document.getElementById("printClassBtn").addEventListener("click", () => {
+  printList(t => t.is_class_head, "قائمة مسؤولي الأقسام");
+});
+
+init();
+</script>
+<div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
+</body>
+</html>
