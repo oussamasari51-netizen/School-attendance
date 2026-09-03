@@ -404,7 +404,7 @@ document.getElementById("printBtn").addEventListener("click", () => {
     .footer{margin-top:24px; font-size:11px; color:#555; border-top:1px solid #ccc; padding-top:6px;}
   </style></head><body>
     <div class="head">
-      <div class="side">${SCHOOL_NAME}<br>السنة الدراسية: ${new Date().getFullYear()}</div>
+      <div class="side">${SCHOOL_NAME}<br>السنة الدراسية: ${SCHOOL_YEAR}</div>
       <h1>${title}</h1>
       <div class="side">الجمهورية الجزائرية الديمقراطية الشعبية<br>وزارة التربية الوطنية</div>
     </div>
@@ -454,5 +454,6 @@ document.getElementById("printBtn").addEventListener("click", () => {
 
 init();
 </script>
+<div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
 </body>
 </html>
