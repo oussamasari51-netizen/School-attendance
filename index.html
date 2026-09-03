@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تسجيل الدخول — نظام الغيابات</title>
+<title>تسجيل الدخول — برنامج الناظر</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -12,8 +12,8 @@
 <div class="auth-wrap">
   <div class="auth-card">
     <div class="auth-badge">📋</div>
-    <h1>نظام تسجيل الغيابات</h1>
-    <p class="sub">سجّل الدخول بحسابك الخاص كأستاذ أو كناظر</p>
+    <h1>برنامج الناظر</h1>
+    <p class="sub">سجّل الدخول بحسابك الخاص كمكلّف بالغياب أو كناظر</p>
 
     <div class="auth-error" id="errBox"></div>
 
@@ -85,5 +85,6 @@
     window.location.href = profile.role === "admin" ? "admin.html" : "teacher.html";
   });
 </script>
+<div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
 </body>
 </html>
