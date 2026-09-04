@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>جدول الحراسة — برنامج الناظر</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="app-shell">
+<div id="sidebarMount"></div>
+<div class="main-area">
+
+<div class="topbar">
+  <div class="brand">
+    <div class="icon">🛡️</div>
+    <div>
+      <h1>جدول الحراسة</h1>
+      <div class="meta">توزيع أيام الحراسة على مشرفي التربية</div>
+    </div>
+  </div>
+  <div class="user-chip">
+    <span id="adminName">...</span>
+    <button onclick="logout()">خروج</button>
+  </div>
+</div>
+
+<div class="page" style="max-width:760px;">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+    <button class="btn-ghost" id="printBtn">🖨️ طباعة جدول الحراسة</button>
+    <button class="btn-primary" id="addBtn">+ إضافة مشرف</button>
+  </div>
+
+  <div class="student-list" id="list">
+    <div class="loading-text">جاري التحميل...</div>
+  </div>
+
+</div>
+
+</div><!-- /main-area -->
+</div><!-- /app-shell -->
+
+<!-- نافذة إضافة مشرف -->
+<div class="modal-backdrop" id="addModal">
+  <div class="modal-sheet">
+    <h3>إضافة مشرف تربية</h3>
+    <div class="field">
+      <label>الاسم الكامل</label>
+      <input type="text" id="sName" placeholder="اللقب والاسم">
+    </div>
+    <div class="field">
+      <label>يوم الحراسة</label>
+      <select id="sDay">
+        <option value="">— غير محدد بعد —</option>
+        <option value="0">الأحد</option>
+        <option value="1">الاثنين</option>
+        <option value="2">الثلاثاء</option>
+        <option value="3">الأربعاء</option>
+        <option value="4">الخميس</option>
+      </select>
+    </div>
+    <button class="btn-primary" id="confirmAddBtn" style="width:100%; margin-top:8px;">إضافة</button>
+    <div class="modal-close-row">
+      <button class="btn-ghost" onclick="closeAddModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/config.js"></script>
+<script src="assets/sidebar.js"></script>
+<script>renderSidebar("duty");</script>
+<script>
+const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+let profile = null;
+let allSupervisors = [];
+
+async function init() {
+  profile = await requireSession("admin");
+  if (!profile) return;
+  document.getElementById("adminName").textContent = profile.full_name;
+  await loadList();
+}
+
+async function loadList() {
+  const list = document.getElementById("list");
+  list.innerHTML = `<div class="loading-text">جاري التحميل...</div>`;
+  const { data } = await db.from("supervisors").select("id, full_name, duty_day").order("full_name");
+  allSupervisors = data || [];
+  renderList();
+}
+
+function renderList() {
+  const list = document.getElementById("list");
+  if (allSupervisors.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">🛡️</div>لا يوجد مشرفون مسجّلون بعد.</div>`;
+    return;
+  }
+  list.innerHTML = "";
+  allSupervisors.forEach(s => {
+    const row = document.createElement("div");
+    row.className = "student-row";
+    const dayOptions = [`<option value="">— غير محدد —</option>`]
+      .concat(DAY_NAMES.slice(0, 5).map((d, i) => `<option value="${i}" ${s.duty_day === i ? "selected" : ""}>${d}</option>`));
+    row.innerHTML = `
+      <div class="sname">${s.full_name}</div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <select class="day-select" style="width:auto; padding:8px 10px; font-size:13px;">${dayOptions.join("")}</select>
+        <button class="btn-ghost del-btn" style="padding:7px 12px; font-size:12.5px; color:var(--absent); background:var(--absent-light);">حذف</button>
+      </div>
+    `;
+    row.querySelector(".day-select").onchange = (e) => updateDay(s, e.target.value);
+    row.querySelector(".del-btn").onclick = () => deleteSupervisor(s);
+    list.appendChild(row);
+  });
+}
+
+async function updateDay(s, val) {
+  const day = val === "" ? null : parseInt(val, 10);
+  const { error } = await db.from("supervisors").update({ duty_day: day }).eq("id", s.id);
+  if (error) { showToast("حدث خطأ"); return; }
+  showToast("تم التحديث");
+  loadList();
+}
+
+async function deleteSupervisor(s) {
+  if (!confirm(`هل تريد حذف "${s.full_name}"؟`)) return;
+  const { error } = await db.from("supervisors").delete().eq("id", s.id);
+  if (error) { showToast("حدث خطأ"); return; }
+  showToast("تم الحذف");
+  loadList();
+}
+
+document.getElementById("addBtn").addEventListener("click", () => {
+  document.getElementById("sName").value = "";
+  document.getElementById("sDay").value = "";
+  document.getElementById("addModal").classList.add("open");
+});
+function closeAddModal() { document.getElementById("addModal").classList.remove("open"); }
+document.getElementById("addModal").addEventListener("click", (e) => { if (e.target.id === "addModal") closeAddModal(); });
+
+document.getElementById("confirmAddBtn").addEventListener("click", async () => {
+  const name = document.getElementById("sName").value.trim();
+  if (!name) { showToast("اكتب اسم المشرف أولاً"); return; }
+  const dayVal = document.getElementById("sDay").value;
+  const { error } = await db.from("supervisors").insert({
+    full_name: name,
+    duty_day: dayVal === "" ? null : parseInt(dayVal, 10),
+  });
+  if (error) { showToast("حدث خطأ أثناء الإضافة"); return; }
+  showToast("تمت الإضافة بنجاح ✓");
+  closeAddModal();
+  loadList();
+});
+
+document.getElementById("printBtn").addEventListener("click", () => {
+  let html = `
+  <html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>جدول خدمات مشرفي التربية</title>
+  <style>
+    body{font-family:Arial,Tahoma,sans-serif; padding:26px; color:#111;}
+    .head{display:flex; justify-content:space-between; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:16px; font-size:13px;}
+    h1{font-size:18px; text-align:center; margin:6px 0 20px;}
+    table{width:100%; border-collapse:collapse;}
+    th,td{border:1px solid #999; padding:8px 10px; text-align:center; font-size:13px;}
+    th{background:#eee;}
+    .sign{display:flex; justify-content:space-between; margin-top:50px; font-size:13px;}
+    .sign div{text-align:center; width:30%;}
+    .line{border-top:1px solid #333; margin-top:36px;}
+  </style></head><body>
+    <div class="head"><span>${SCHOOL_NAME}<br>السنة الدراسية: ${SCHOOL_YEAR}</span><span>الجمهورية الجزائرية الديمقراطية الشعبية<br>وزارة التربية الوطنية</span></div>
+    <h1>جدول خدمات مشرفي التربية</h1>
+    <table>
+      <tr><th>الرقم</th><th>الاسم واللقب</th><th>يوم الحراسة</th></tr>
+      ${allSupervisors.map((s, i) => `<tr><td>${i + 1}</td><td>${s.full_name}</td><td>${s.duty_day !== null && s.duty_day !== undefined ? DAY_NAMES[s.duty_day] : "—"}</td></tr>`).join("")}
+    </table>
+    <div class="sign">
+      <div>إمضاء مستشار التربية<div class="line"></div></div>
+      <div>إمضاء المدير<div class="line"></div></div>
+      <div>ختم المؤسسة<div class="line"></div></div>
+    </div>
+  </body></html>`;
+  const w = window.open("", "_blank");
+  w.document.write(html);
+  w.document.close();
+});
+
+init();
+</script>
+<div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
+</body>
+</html>
