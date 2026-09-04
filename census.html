@@ -18,6 +18,10 @@
 </head>
 <body>
 
+<div class="app-shell">
+<div id="sidebarMount"></div>
+<div class="main-area">
+
 <div class="topbar">
   <div class="brand">
     <div class="icon">📊</div>
@@ -28,7 +32,6 @@
   </div>
   <div class="user-chip">
     <span id="adminName">...</span>
-    <a href="students.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">⟵ إدارة التلاميذ</a>
     <button onclick="logout()">خروج</button>
   </div>
 </div>
@@ -88,7 +91,12 @@
 
 </div>
 
+</div><!-- /main-area -->
+</div><!-- /app-shell -->
+
 <script src="assets/config.js"></script>
+<script src="assets/sidebar.js"></script>
+<script>renderSidebar("census");</script>
 <script>
 let profile = null;
 let allClasses = [];
