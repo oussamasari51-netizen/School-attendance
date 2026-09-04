@@ -9,6 +9,10 @@
 </head>
 <body>
 
+<div class="app-shell">
+<div id="sidebarMount"></div>
+<div class="main-area">
+
 <div class="topbar">
   <div class="brand">
     <div class="icon">📋</div>
@@ -19,10 +23,6 @@
   </div>
   <div class="user-chip">
     <span id="adminName">...</span>
-    <a href="import.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">📥 استيراد التلاميذ</a>
-    <a href="teachers.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">🧑‍🏫 الأساتذة</a>
-    <a href="students.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">👥 إدارة التلاميذ</a>
-    <a href="census.html" style="color:#fff; text-decoration:none; font-size:13px; margin-left:10px;">📊 الحساب الدوري</a>
     <button onclick="logout()">خروج</button>
   </div>
 </div>
@@ -53,6 +53,9 @@
 
 </div>
 
+</div><!-- /main-area -->
+</div><!-- /app-shell -->
+
 <!-- نافذة تغيير الحالة -->
 <div class="modal-backdrop" id="statusModal">
   <div class="modal-sheet">
@@ -66,6 +69,8 @@
 </div>
 
 <script src="assets/config.js"></script>
+<script src="assets/sidebar.js"></script>
+<script>renderSidebar("admin");</script>
 <script>
 let profile = null;
 let selectedSlot = null;
