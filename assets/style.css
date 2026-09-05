@@ -7,9 +7,9 @@
   --surface: #FFFFFF;
   --ink: #1C2B39;
   --ink-soft: #4A5A68;
-  --primary: #2F5D62;
-  --primary-dark: #234548;
-  --primary-light: #E4EDEC;
+  --primary: #2563EB;
+  --primary-dark: #1D4ED8;
+  --primary-light: #DCE9FE;
   --absent: #C0392B;
   --absent-light: #FBEAE8;
   --pending: #D68C21;
@@ -353,7 +353,24 @@ input:focus, select:focus, button:focus-visible {
   padding: 4px 6px 18px;
   border-bottom: 1px solid var(--paper);
   margin-bottom: 8px;
+  position: relative;
 }
+.sb-toggle {
+  margin-right: auto;
+  background: var(--paper); border: none; border-radius: 8px;
+  width: 30px; height: 30px; font-size: 14px; color: var(--ink-soft);
+  display: flex; align-items: center; justify-content: center;
+}
+.sb-toggle:hover { background: var(--primary-light); color: var(--primary); }
+
+.app-shell.sidebar-collapsed .sidebar { display: none; }
+.floating-toggle {
+  display: none; position: fixed; top: 16px; right: 16px; z-index: 50;
+  width: 40px; height: 40px; border-radius: 10px;
+  background: var(--primary); color: #fff; border: none;
+  font-size: 16px; box-shadow: var(--shadow-lg); align-items: center; justify-content: center;
+}
+.app-shell.sidebar-collapsed .floating-toggle { display: flex; }
 .sidebar .sb-brand .icon {
   width: 38px; height: 38px; border-radius: 10px;
   background: var(--primary); color: #fff;
