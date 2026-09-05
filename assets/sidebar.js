@@ -34,6 +34,7 @@ function renderSidebar(activeKey) {
           <div class="txt">${typeof APP_NAME !== "undefined" ? APP_NAME : "برنامج الناظر"}</div>
           <div class="sub">لوحة التحكم</div>
         </div>
+        <button class="sb-toggle" onclick="toggleSidebar()" title="طي القائمة">☰</button>
       </div>
       <div class="sb-school">
         <b>${typeof SCHOOL_NAME !== "undefined" ? SCHOOL_NAME : ""}</b>
@@ -42,5 +43,16 @@ function renderSidebar(activeKey) {
       <div class="sb-nav">${desktopLinks}</div>
     </div>
     <div class="mobile-nav">${mobileLinks}</div>
+    <button class="floating-toggle" onclick="toggleSidebar()" title="إظهار القائمة">☰</button>
   `;
+
+  if (localStorage.getItem("sidebarCollapsed") === "1") {
+    document.querySelector(".app-shell").classList.add("sidebar-collapsed");
+  }
+}
+
+function toggleSidebar() {
+  const shell = document.querySelector(".app-shell");
+  shell.classList.toggle("sidebar-collapsed");
+  localStorage.setItem("sidebarCollapsed", shell.classList.contains("sidebar-collapsed") ? "1" : "0");
 }
