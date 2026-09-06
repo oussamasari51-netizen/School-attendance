@@ -1,13 +1,14 @@
 // ===== القائمة الجانبية الموحّدة لصفحات الناظر =====
 
 const NAV_ITEMS = [
-  { key: "admin",    href: "admin.html",    icon: "📋", label: "الرئيسية" },
-  { key: "students", href: "students.html", icon: "👥", label: "التلاميذ" },
-  { key: "import",   href: "import.html",   icon: "📥", label: "استيراد التلاميذ" },
-  { key: "teachers", href: "teachers.html", icon: "🧑‍🏫", label: "الأساتذة" },
-  { key: "duty",     href: "duty.html",     icon: "🛡️", label: "جدول الحراسة" },
-  { key: "reports",  href: "reports.html",  icon: "📊", label: "التقارير" },
-  { key: "census",   href: "census.html",   icon: "🧮", label: "الحساب الدوري" },
+  { key: "admin",     href: "admin.html",     icon: "📋", label: "الرئيسية" },
+  { key: "students",  href: "students.html",  icon: "👥", label: "التلاميذ" },
+  { key: "import",    href: "import.html",    icon: "📥", label: "استيراد التلاميذ" },
+  { key: "teachers",  href: "teachers.html",  icon: "🧑‍🏫", label: "الأساتذة" },
+  { key: "timetable", href: "timetable.html", icon: "🗓️", label: "استعمال الزمن" },
+  { key: "duty",      href: "duty.html",      icon: "🛡️", label: "جدول الحراسة" },
+  { key: "reports",   href: "reports.html",   icon: "📊", label: "التقارير" },
+  { key: "census",    href: "census.html",    icon: "🧮", label: "الحساب الدوري" },
 ];
 
 function renderSidebar(activeKey) {
