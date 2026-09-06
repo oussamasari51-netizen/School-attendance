@@ -42,6 +42,19 @@ const SCHOOL_NAME = "متوسطة بوزراد حسين — عنابة";
 const APP_NAME = "برنامج الناظر";
 const SCHOOL_YEAR = "2026-2027"; // عدّل هذا كل بداية سنة دراسية
 
+// حصص "استعمال الزمن" البيداغوجي (منفصلة عن حصص تسجيل الغياب) — 8 حصص، الأحد إلى الخميس
+const TIMETABLE_PERIODS = [
+  { slot: 1, label: "1", time: "08:00–09:00" },
+  { slot: 2, label: "2", time: "09:00–10:00" },
+  { slot: 3, label: "3", time: "10:00–11:00" },
+  { slot: 4, label: "4", time: "11:00–12:00" },
+  { slot: 5, label: "5", time: "13:30–14:30" },
+  { slot: 6, label: "6", time: "14:30–15:30" },
+  { slot: 7, label: "7", time: "15:30–16:30" },
+  { slot: 8, label: "8", time: "16:30–17:30" },
+];
+const TIMETABLE_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس"];
+
 const STATUS_OPTIONS = [
   { value: "تسوية وضعية", cls: "opt-resolved" },
   { value: "خروج استثنائي", cls: "opt-pending" },
