@@ -108,8 +108,10 @@ async function requireSession(expectedRole) {
     window.location.href = "index.html";
     return null;
   }
-  if (expectedRole && profile.role !== expectedRole) {
-    window.location.href = profile.role === "admin" ? "admin.html" : "teacher.html";
+  // expectedRole يقبل الآن نصاً واحداً أو مصفوفة أدوار مسموحة، مثال: ["admin","supervisor"]
+  const allowed = Array.isArray(expectedRole) ? expectedRole : (expectedRole ? [expectedRole] : null);
+  if (allowed && !allowed.includes(profile.role)) {
+    window.location.href = profile.role === "teacher" ? "teacher.html" : "admin.html";
     return null;
   }
   return profile;
