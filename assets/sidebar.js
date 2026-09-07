@@ -1,27 +1,30 @@
-// ===== القائمة الجانبية الموحّدة لصفحات الناظر =====
+// ===== القائمة الجانبية الموحّدة لصفحات الناظر والمشرف =====
 
 const NAV_ITEMS = [
-  { key: "admin",     href: "admin.html",     icon: "📋", label: "الرئيسية" },
-  { key: "students",  href: "students.html",  icon: "👥", label: "التلاميذ" },
-  { key: "import",    href: "import.html",    icon: "📥", label: "استيراد التلاميذ" },
-  { key: "teachers",  href: "teachers.html",  icon: "🧑‍🏫", label: "الأساتذة" },
-  { key: "timetable", href: "timetable.html", icon: "🗓️", label: "استعمال الزمن" },
-  { key: "duty",      href: "duty.html",      icon: "🛡️", label: "جدول الحراسة" },
-  { key: "reports",   href: "reports.html",   icon: "📊", label: "التقارير" },
-  { key: "census",    href: "census.html",    icon: "🧮", label: "الحساب الدوري" },
+  { key: "admin",     href: "admin.html",     icon: "📋", label: "الرئيسية",         roles: ["admin", "supervisor"] },
+  { key: "students",  href: "students.html",  icon: "👥", label: "التلاميذ",          roles: ["admin"] },
+  { key: "import",    href: "import.html",    icon: "📥", label: "استيراد التلاميذ",   roles: ["admin"] },
+  { key: "teachers",  href: "teachers.html",  icon: "🧑‍🏫", label: "الأساتذة",          roles: ["admin"] },
+  { key: "timetable", href: "timetable.html", icon: "🗓️", label: "استعمال الزمن",     roles: ["admin"] },
+  { key: "duty",      href: "duty.html",      icon: "🛡️", label: "جدول الحراسة",      roles: ["admin", "supervisor"] },
+  { key: "reports",   href: "reports.html",   icon: "📊", label: "التقارير",          roles: ["admin", "supervisor"] },
+  { key: "census",    href: "census.html",    icon: "🧮", label: "الحساب الدوري",     roles: ["admin"] },
 ];
 
-function renderSidebar(activeKey) {
+// activeKey: مفتاح الصفحة الحالية. role: دور المستخدم الحالي ("admin" أو "supervisor") — مررها بعد نجاح requireSession
+function renderSidebar(activeKey, role) {
   const mount = document.getElementById("sidebarMount");
   if (!mount) return;
 
-  const desktopLinks = NAV_ITEMS.map(item => `
+  const visibleItems = NAV_ITEMS.filter(item => !role || item.roles.includes(role));
+
+  const desktopLinks = visibleItems.map(item => `
     <a class="sb-link ${item.key === activeKey ? "active" : ""}" href="${item.href}">
       <span class="ic">${item.icon}</span><span>${item.label}</span>
     </a>
   `).join("");
 
-  const mobileLinks = NAV_ITEMS.map(item => `
+  const mobileLinks = visibleItems.map(item => `
     <a class="${item.key === activeKey ? "active" : ""}" href="${item.href}">
       <span class="ic">${item.icon}</span><span>${item.label}</span>
     </a>
