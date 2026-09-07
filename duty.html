@@ -3,20 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>جدول خدمات مشرفي التربية — برنامج الناظر</title>
+<title>مهام مشرفي التربية — برنامج الناظر</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  .duty-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); margin-bottom: 20px; }
-  .duty-table th, .duty-table td { border: 1px solid var(--paper); padding: 8px; text-align: center; vertical-align: top; }
-  .duty-table th { background: var(--primary-light); color: var(--primary-dark); font-size: 12.5px; }
-  .duty-table td.row-label { background: var(--paper); font-weight: 700; font-size: 13px; text-align: right; min-width: 170px; }
-  .duty-table input.cell-input { width: 100%; border: none; background: transparent; text-align: center; font-size: 13px; font-family: 'Tajawal', sans-serif; padding: 6px; border-radius: 6px; }
+  table.duty-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .duty-table th, .duty-table td { border: 1px solid var(--paper); padding: 7px; text-align: center; vertical-align: top; font-size: 12.5px; }
+  .duty-table th { background: var(--primary-light); color: var(--primary-dark); }
+  .duty-table td.time-col { background: var(--paper); font-weight: 700; min-width: 130px; text-align: right; }
+  .duty-table td.time-col .tlabel { display:block; }
+  .duty-table td.time-col .ttime { display:block; font-size:11px; color:var(--ink-soft); font-weight:500; }
+  .duty-table input.cell-input { width: 100%; border: none; background: transparent; text-align: center; font-size: 12px; font-family: 'Tajawal', sans-serif; padding: 5px; border-radius: 6px; }
   .duty-table input.cell-input:focus { background: var(--primary-light); outline: none; }
-  .col-name-input { width: 100%; border: none; background: transparent; text-align: center; font-weight: 800; font-size: 13px; font-family: 'Cairo', sans-serif; color: var(--primary-dark); }
-  .col-day-select { width: 100%; border: none; background: transparent; text-align: center; font-size: 11.5px; color: var(--ink-soft); }
-  .row-del-btn, .col-del-btn { background: var(--absent-light); color: var(--absent); border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 12px; cursor: pointer; }
-  .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .row-del-btn { background: var(--absent-light); color: var(--absent); border: none; border-radius: 6px; width: 20px; height: 20px; font-size: 11px; cursor: pointer; margin-right:4px; }
+  .copy-row-btn { background: var(--primary-light); color: var(--primary); border: none; border-radius: 6px; width: 20px; height: 20px; font-size: 11px; cursor: pointer; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items:center; }
+  .time-label-edit { width: 100%; border:none; background:transparent; font-weight:700; font-size:12.5px; text-align:right; }
+  .time-time-edit { width: 100%; border:none; background:transparent; font-size:11px; color:var(--ink-soft); text-align:right; }
 </style>
 </head>
 <body>
@@ -29,8 +32,8 @@
   <div class="brand">
     <div class="icon">🛡️</div>
     <div>
-      <h1>جدول خدمات مشرفي التربية</h1>
-      <div class="meta">وزّع المهام على المشرفين حسب أيامهم — عدّل أي خانة مباشرة</div>
+      <h1>مهام مشرفي التربية</h1>
+      <div class="meta">صفحة توقيت كاملة لكل مشرف — حسب أيام الأسبوع</div>
     </div>
   </div>
   <div class="user-chip">
@@ -42,9 +45,16 @@
 <div class="page">
 
   <div class="toolbar">
-    <button class="btn-primary" id="addSupervisorBtn">+ إضافة مشرف</button>
-    <button class="btn-ghost" id="addTaskBtn">+ إضافة مهمة</button>
-    <button class="btn-ghost" id="printBtn">🖨️ طباعة الجدول</button>
+    <select id="supervisorSelect" class="datepick-inline"></select>
+    <button class="btn-ghost" id="addSupervisorBtn">+ إضافة مشرف</button>
+    <button class="btn-ghost" id="delSupervisorBtn" style="color:var(--absent); background:var(--absent-light);">حذف هذا المشرف</button>
+    <button class="btn-ghost" id="addRowBtn">+ إضافة صف زمني</button>
+    <button class="btn-primary" id="printBtn">🖨️ طباعة صفحة المشرف</button>
+  </div>
+
+  <div class="field" style="max-width:420px;">
+    <label>الأقسام المسندة لهذا المشرف</label>
+    <input type="text" id="assignedClasses" placeholder="مثال: 4م1+4م2+4م3">
   </div>
 
   <div id="loadingMsg" class="loading-text">جاري التحميل...</div>
@@ -52,10 +62,10 @@
     <table class="duty-table" id="dutyTable" style="display:none;"></table>
   </div>
 
-  <div class="section-title" style="margin-top:0;">ملاحظات</div>
-  <div class="panel-like" style="background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px;">
-    <textarea id="notesArea" rows="7" style="width:100%; border:1.5px solid var(--line); border-radius:10px; padding:10px; font-family:'Tajawal',sans-serif; font-size:13px;"></textarea>
-    <button class="btn-primary" id="saveNotesBtn" style="margin-top:10px;">حفظ الملاحظات</button>
+  <div class="section-title" style="margin-top:0;">المهام المسندة (نفس النص لكل المشرفين — قابل للتعديل)</div>
+  <div style="background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px;">
+    <textarea id="notesArea" rows="10" style="width:100%; border:1.5px solid var(--line); border-radius:10px; padding:10px; font-family:'Tajawal',sans-serif; font-size:13px;"></textarea>
+    <button class="btn-primary" id="saveNotesBtn" style="margin-top:10px;">حفظ</button>
   </div>
 
 </div>
@@ -67,35 +77,62 @@
 <script src="assets/sidebar.js"></script>
 <script>renderSidebar("duty");</script>
 <script>
-const DAY_NAMES = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس"];
+const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 let profile = null;
 let supervisors = [];
 let tasks = [];
-let cellsMap = {}; // `${supervisorId}_${taskId}` -> content
+let cellsMap = {}; // `${taskId}_${day}` -> content (للمشرف الحالي فقط)
+let currentSupervisorId = null;
 
 async function init() {
   profile = await requireSession("admin");
   if (!profile) return;
   document.getElementById("adminName").textContent = profile.full_name;
-  await loadAll();
+
+  const { data: settings } = await db.from("app_settings").select("value").eq("key", "duty_notes");
+  document.getElementById("notesArea").value = (settings && settings[0]) ? settings[0].value : "";
+
+  await loadSupervisors();
 }
 
-async function loadAll() {
+async function loadSupervisors() {
+  const { data } = await db.from("supervisors").select("id, full_name, assigned_classes").order("full_name");
+  supervisors = data || [];
+  const sel = document.getElementById("supervisorSelect");
+  sel.innerHTML = supervisors.map(s => `<option value="${s.id}">${s.full_name}</option>`).join("");
+  if (supervisors.length) {
+    currentSupervisorId = supervisors[0].id;
+    sel.value = currentSupervisorId;
+    document.getElementById("assignedClasses").value = supervisors[0].assigned_classes || "";
+    await loadGridData();
+  } else {
+    document.getElementById("loadingMsg").textContent = "لا يوجد مشرفون بعد — اضغط «+ إضافة مشرف» للبدء.";
+  }
+}
+
+document.getElementById("supervisorSelect").addEventListener("change", async (e) => {
+  currentSupervisorId = e.target.value;
+  const s = supervisors.find(x => x.id === currentSupervisorId);
+  document.getElementById("assignedClasses").value = s ? (s.assigned_classes || "") : "";
+  await loadGridData();
+});
+
+document.getElementById("assignedClasses").addEventListener("change", async (e) => {
+  await db.from("supervisors").update({ assigned_classes: e.target.value.trim() }).eq("id", currentSupervisorId);
+  showToast("تم الحفظ");
+});
+
+async function loadGridData() {
   document.getElementById("loadingMsg").style.display = "block";
   document.getElementById("dutyTable").style.display = "none";
 
-  const [{ data: sv }, { data: tk }, { data: cells }, { data: settings }] = await Promise.all([
-    db.from("supervisors").select("id, full_name, duty_day").order("full_name"),
-    db.from("duty_tasks").select("id, label, order_index").order("order_index"),
-    db.from("duty_cells").select("supervisor_id, task_id, content"),
-    db.from("app_settings").select("key, value").eq("key", "duty_notes"),
+  const [{ data: tk }, { data: cells }] = await Promise.all([
+    db.from("duty_tasks").select("id, label, time_label, order_index").order("order_index"),
+    db.from("duty_cells").select("task_id, day_of_week, content").eq("supervisor_id", currentSupervisorId),
   ]);
-
-  supervisors = sv || [];
   tasks = tk || [];
   cellsMap = {};
-  (cells || []).forEach(c => cellsMap[`${c.supervisor_id}_${c.task_id}`] = c.content || "");
-  document.getElementById("notesArea").value = (settings && settings[0]) ? settings[0].value : "";
+  (cells || []).forEach(c => cellsMap[`${c.task_id}_${c.day_of_week}`] = c.content || "");
 
   renderTable();
   document.getElementById("loadingMsg").style.display = "none";
@@ -104,30 +141,24 @@ async function loadAll() {
 
 function renderTable() {
   const table = document.getElementById("dutyTable");
-  let html = "<thead><tr><th>المهمة</th>";
-  supervisors.forEach(s => {
-    html += `<th>
-      <input class="col-name-input" value="${s.full_name}" data-sv="${s.id}" onchange="updateSupervisorName(this)">
-      <select class="col-day-select" data-sv="${s.id}" onchange="updateSupervisorDay(this)">
-        <option value="">— يوم —</option>
-        ${DAY_NAMES.map((d, i) => `<option value="${i}" ${s.duty_day === i ? "selected" : ""}>${d}</option>`).join("")}
-      </select>
-      <button class="col-del-btn" onclick="deleteSupervisor('${s.id}')" title="حذف المشرف">×</button>
-    </th>`;
-  });
-  html += "</tr></thead><tbody>";
-
+  let html = "<thead><tr><th>التوقيت</th>" + DAYS.map(d => `<th>${d}</th>`).join("") + "</tr></thead><tbody>";
   tasks.forEach(t => {
     html += `<tr>
-      <td class="row-label">
-        <div style="display:flex; align-items:center; gap:6px; justify-content:space-between;">
-          <input class="col-name-input" style="text-align:right; color:var(--ink); font-size:13px;" value="${t.label}" data-task="${t.id}" onchange="updateTaskLabel(this)">
-          <button class="row-del-btn" onclick="deleteTask('${t.id}')" title="حذف المهمة">×</button>
+      <td class="time-col">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:4px;">
+          <div style="flex:1;">
+            <input class="time-label-edit" value="${t.label}" data-task="${t.id}" data-field="label" onchange="updateTaskField(this)">
+            <input class="time-time-edit" value="${t.time_label || ""}" data-task="${t.id}" data-field="time_label" onchange="updateTaskField(this)">
+          </div>
+          <div>
+            <button class="copy-row-btn" title="انسخ خانة الأحد لبقية الأيام" onclick="copyRowAcrossDays('${t.id}')">⧉</button>
+            <button class="row-del-btn" title="حذف الصف" onclick="deleteTask('${t.id}')">×</button>
+          </div>
         </div>
       </td>`;
-    supervisors.forEach(s => {
-      const key = `${s.id}_${t.id}`;
-      html += `<td><input class="cell-input" value="${cellsMap[key] || ""}" data-sv="${s.id}" data-task="${t.id}" onchange="updateCell(this)"></td>`;
+    DAYS.forEach((d, dow) => {
+      const key = `${t.id}_${dow}`;
+      html += `<td><input class="cell-input" value="${cellsMap[key] || ""}" data-task="${t.id}" data-day="${dow}" onchange="updateCell(this)"></td>`;
     });
     html += "</tr>";
   });
@@ -135,89 +166,105 @@ function renderTable() {
   table.innerHTML = html;
 }
 
-async function updateSupervisorName(el) {
-  await db.from("supervisors").update({ full_name: el.value.trim() }).eq("id", el.dataset.sv);
+async function updateTaskField(el) {
+  const field = el.dataset.field;
+  await db.from("duty_tasks").update({ [field]: el.value.trim() }).eq("id", el.dataset.task);
   showToast("تم الحفظ");
 }
-async function updateSupervisorDay(el) {
-  const val = el.value === "" ? null : parseInt(el.value, 10);
-  await db.from("supervisors").update({ duty_day: val }).eq("id", el.dataset.sv);
-  showToast("تم الحفظ");
-}
-async function updateTaskLabel(el) {
-  await db.from("duty_tasks").update({ label: el.value.trim() }).eq("id", el.dataset.task);
-  showToast("تم الحفظ");
-}
+
 async function updateCell(el) {
-  const supervisor_id = el.dataset.sv, task_id = el.dataset.task;
+  const task_id = el.dataset.task, day_of_week = parseInt(el.dataset.day, 10);
+  const key = `${task_id}_${day_of_week}`;
   const { error } = await db.from("duty_cells")
-    .upsert({ supervisor_id, task_id, content: el.value }, { onConflict: "supervisor_id,task_id" });
+    .upsert({ supervisor_id: currentSupervisorId, task_id, day_of_week, content: el.value }, { onConflict: "supervisor_id,task_id,day_of_week" });
   if (error) { showToast("حدث خطأ أثناء الحفظ"); return; }
+  cellsMap[key] = el.value;
   showToast("تم الحفظ");
+}
+
+async function copyRowAcrossDays(taskId) {
+  const base = cellsMap[`${taskId}_0`] || "";
+  const rows = [0, 1, 2, 3, 4].map(dow => ({ supervisor_id: currentSupervisorId, task_id: taskId, day_of_week: dow, content: base }));
+  const { error } = await db.from("duty_cells").upsert(rows, { onConflict: "supervisor_id,task_id,day_of_week" });
+  if (error) { showToast("حدث خطأ"); return; }
+  showToast("تم النسخ لكل الأيام");
+  loadGridData();
 }
 
 document.getElementById("addSupervisorBtn").addEventListener("click", async () => {
   const { error } = await db.from("supervisors").insert({ full_name: "مشرف جديد" });
   if (error) { showToast("حدث خطأ"); return; }
-  loadAll();
+  loadSupervisors();
 });
 
-document.getElementById("addTaskBtn").addEventListener("click", async () => {
+document.getElementById("delSupervisorBtn").addEventListener("click", async () => {
+  if (!currentSupervisorId) return;
+  const s = supervisors.find(x => x.id === currentSupervisorId);
+  if (!confirm(`حذف المشرف "${s ? s.full_name : ""}" وكل بياناته؟`)) return;
+  await db.from("supervisors").delete().eq("id", currentSupervisorId);
+  loadSupervisors();
+});
+
+document.getElementById("addRowBtn").addEventListener("click", async () => {
   const nextOrder = tasks.length ? Math.max(...tasks.map(t => t.order_index)) + 1 : 1;
-  const { error } = await db.from("duty_tasks").insert({ label: "مهمة جديدة", order_index: nextOrder });
+  const { error } = await db.from("duty_tasks").insert({ label: "صف جديد", time_label: "", order_index: nextOrder });
   if (error) { showToast("حدث خطأ"); return; }
-  loadAll();
+  loadGridData();
 });
-
-async function deleteSupervisor(id) {
-  if (!confirm("حذف هذا المشرف؟")) return;
-  await db.from("supervisors").delete().eq("id", id);
-  loadAll();
-}
 async function deleteTask(id) {
-  if (!confirm("حذف هذه المهمة؟")) return;
+  if (!confirm("حذف هذا الصف الزمني من جدول كل المشرفين؟")) return;
   await db.from("duty_tasks").delete().eq("id", id);
-  loadAll();
+  loadGridData();
 }
 
 document.getElementById("saveNotesBtn").addEventListener("click", async () => {
   const { error } = await db.from("app_settings")
     .upsert({ key: "duty_notes", value: document.getElementById("notesArea").value }, { onConflict: "key" });
   if (error) { showToast("حدث خطأ"); return; }
-  showToast("تم حفظ الملاحظات");
+  showToast("تم الحفظ");
 });
 
 document.getElementById("printBtn").addEventListener("click", () => {
-  let head = `<tr><th>المهمة</th>${supervisors.map(s => `<th>${s.full_name}<br><small>${s.duty_day !== null && s.duty_day !== undefined ? DAY_NAMES[s.duty_day] : ""}</small></th>`).join("")}</tr>`;
-  let body = tasks.map(t => {
-    const cells = supervisors.map(s => `<td>${cellsMap[`${s.id}_${t.id}`] || ""}</td>`).join("");
-    return `<tr><td style="text-align:right; font-weight:bold;">${t.label}</td>${cells}</tr>`;
+  const s = supervisors.find(x => x.id === currentSupervisorId);
+  const notes = (document.getElementById("notesArea").value || "").split("\n").filter(Boolean)
+    .map(l => `<li>${l.replace(/^\d+\.\s*/, "")}</li>`).join("");
+
+  let rows = tasks.map(t => {
+    const cells = DAYS.map((d, dow) => `<td>${cellsMap[`${t.id}_${dow}`] || ""}</td>`).join("");
+    return `<tr><td class="tcol"><b>${t.label}</b><br><small>${t.time_label || ""}</small></td>${cells}</tr>`;
   }).join("");
-  const notes = (document.getElementById("notesArea").value || "").split("\n").filter(Boolean).map(l => `<li>${l.replace(/^\d+\.\s*/, "")}</li>`).join("");
 
   let html = `
-  <html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>جدول خدمات مشرفي التربية</title>
+  <html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>مهام مشرفي التربية</title>
   <style>
-    body{font-family:Arial,Tahoma,sans-serif; padding:26px; color:#111;}
-    .head{display:flex; justify-content:space-between; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:16px; font-size:13px;}
-    h1{font-size:18px; text-align:center; margin:6px 0 20px;}
-    table{width:100%; border-collapse:collapse; margin-bottom:20px;}
-    th,td{border:1px solid #999; padding:8px 10px; text-align:center; font-size:12.5px;}
-    th{background:#eee;}
-    ol{font-size:12.5px; padding-right:20px;}
-    .sign{display:flex; justify-content:space-between; margin-top:50px; font-size:13px;}
+    body{font-family:Arial,Tahoma,sans-serif; padding:24px; color:#111;}
+    .head{display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px;}
+    h1{font-size:20px; text-align:center; border:3px double #111; display:inline-block; padding:8px 30px; margin:10px auto 16px; display:block; width:fit-content;}
+    .wrap-h1{text-align:center;}
+    .supname{font-size:15px; font-weight:bold; margin-bottom:12px;}
+    table{width:100%; border-collapse:collapse; margin-bottom:16px;}
+    th,td{border:2px solid #111; padding:6px; text-align:center; font-size:11.5px;}
+    th{background:#eee; font-size:13px;}
+    td.tcol{text-align:right; font-size:11px; min-width:110px;}
+    .assigned{font-weight:bold; margin-bottom:14px; font-size:13px;}
+    ol{font-size:11.5px; padding-right:20px;}
+    .sign{display:flex; justify-content:space-between; margin-top:40px; font-size:12.5px;}
     .sign div{text-align:center; width:30%;}
-    .line{border-top:1px solid #333; margin-top:36px;}
   </style></head><body>
-    <div class="head"><span>${SCHOOL_NAME}<br>السنة الدراسية: ${SCHOOL_YEAR}</span><span>الجمهورية الجزائرية الديمقراطية الشعبية<br>وزارة التربية الوطنية</span></div>
-    <h1>جدول خدمات مشرفي التربية</h1>
-    <table>${head}${body}</table>
-    <b>ملاحظات:</b>
+    <div class="head"><span>السنة الدراسية: ${SCHOOL_YEAR}</span><span>${SCHOOL_NAME}</span></div>
+    <div class="wrap-h1"><h1>مهام مشرفي التربية</h1></div>
+    <div class="supname">مشرف التربية: ${s ? s.full_name : ""}</div>
+    <table>
+      <tr><th>التوقيت</th>${DAYS.map(d => `<th>${d}</th>`).join("")}</tr>
+      ${rows}
+    </table>
+    <div class="assigned">الأقسام المسندة: ${s ? (s.assigned_classes || "") : ""}</div>
+    <b>المهام المسندة:</b>
     <ol>${notes}</ol>
     <div class="sign">
-      <div>إمضاء مستشار التربية<div class="line"></div></div>
-      <div>إمضاء المدير<div class="line"></div></div>
-      <div>ختم المؤسسة<div class="line"></div></div>
+      <div>المدير<br><br>ـــــــــــــ</div>
+      <div>مشرفة التربية العامة<br><br>ـــــــــــــ</div>
+      <div>مشرف التربية<br><br>ـــــــــــــ</div>
     </div>
   </body></html>`;
   const w = window.open("", "_blank");
