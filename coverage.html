@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>المداومة — برنامج الناظر</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .covered-badge { position:absolute; top:8px; left:8px; background:var(--resolved); color:#fff; font-size:10px; padding:2px 7px; border-radius:10px; }
+  .class-card { position:relative; }
+  .tt-info { font-size:11.5px; color:var(--ink-soft); margin-top:4px; }
+  .tt-info b { color:var(--ink); }
+  .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+<div id="sidebarMount"></div>
+<div class="main-area">
+
+<div class="topbar">
+  <div class="brand">
+    <div class="icon">🔄</div>
+    <div>
+      <h1>المداومة</h1>
+      <div class="meta">تسجيل مداومة مشرف التربية مكان أستاذ غائب</div>
+    </div>
+  </div>
+  <div class="user-chip">
+    <span id="adminName">...</span>
+    <button onclick="logout()">خروج</button>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="toolbar">
+    <div class="field" style="margin:0; max-width:220px;">
+      <label>أنا (المشرف الحالي)</label>
+      <select id="whoAmI"></select>
+    </div>
+    <div class="field" style="margin:0;">
+      <label>التاريخ</label>
+      <input type="date" id="datePicker">
+    </div>
+  </div>
+
+  <div class="periods-rail" style="margin-bottom:18px;">
+    <div class="rail-head">
+      <h2>الحصة</h2>
+      <span class="date" id="dateLabel"></span>
+    </div>
+    <div class="rail-track" id="railTrack"></div>
+  </div>
+
+  <div class="section-title" style="margin-top:0;">اضغط على القسم الذي غاب أستاذه</div>
+  <div class="grid" id="classGrid">
+    <div class="loading-text">اختر مشرفاً وتاريخاً أولاً</div>
+  </div>
+
+  <div class="section-title">📄 التقرير الشهري</div>
+  <div style="background:var(--surface); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <select id="reportSupervisor"></select>
+    <input type="month" id="reportMonth">
+    <button class="btn-primary" id="printReportBtn">🖨️ طباعة التقرير الشهري</button>
+  </div>
+
+</div>
+
+</div><!-- /main-area -->
+</div><!-- /app-shell -->
+
+<!-- نافذة تأكيد المداومة -->
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal-sheet">
+    <h3 id="confirmTitle"></h3>
+    <p class="msub" id="confirmSub"></p>
+    <div class="field">
+      <label>المادة</label>
+      <input type="text" id="cSubject">
+    </div>
+    <div class="field">
+      <label>الأستاذ الغائب</label>
+      <input type="text" id="cTeacher">
+    </div>
+    <div class="field">
+      <label>ملاحظة (اختياري)</label>
+      <input type="text" id="cNote" placeholder="مثال: مراجعة دروس">
+    </div>
+    <button class="btn-primary" id="confirmSaveBtn" style="width:100%;">تأكيد المداومة</button>
+    <div class="modal-close-row">
+      <button class="btn-ghost" onclick="closeConfirmModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- نافضة عرض/حذف مداومة مسجّلة -->
+<div class="modal-backdrop" id="viewModal">
+  <div class="modal-sheet">
+    <h3>مداومة مسجّلة</h3>
+    <p class="msub" id="viewDetails"></p>
+    <button class="btn-primary" id="deleteCoverageBtn" style="width:100%; background:var(--absent);">حذف هذه المداومة</button>
+    <div class="modal-close-row">
+      <button class="btn-ghost" onclick="closeViewModal()">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/config.js"></script>
+<script src="assets/sidebar.js"></script>
+<script>
+let profile = null;
+let allClasses = [];
+let supervisors = [];
+let selectedSupervisorId = null;
+let selectedDate = null;
+let selectedSlot = null;
+let ttMap = {};       // `${classId}` -> {subject, teacher_label} لليوم/الحصة المختارة
+let coverageMap = {}; // `${classId}` -> coverage record لليوم/الحصة المختارة
+let activeClass = null;
+
+async function init() {
+  profile = await requireSession(["admin", "supervisor"]);
+  if (!profile) return;
+  document.getElementById("adminName").textContent = profile.full_name;
+  renderSidebar("coverage", profile.role);
+
+  const [{ data: classes }, { data: sv }] = await Promise.all([
+    db.from("classes").select("id, name").order("name"),
+    db.from("supervisors").select("id, full_name").order("full_name"),
+  ]);
+  allClasses = classes || [];
+  supervisors = sv || [];
+
+  const whoSel = document.getElementById("whoAmI");
+  const repSel = document.getElementById("reportSupervisor");
+  const opts = supervisors.map(s => `<option value="${s.id}">${s.full_name}</option>`).join("");
+  whoSel.innerHTML = opts || `<option value="">لا يوجد مشرفون — أضفهم من صفحة جدول الحراسة</option>`;
+  repSel.innerHTML = opts;
+
+  const remembered = localStorage.getItem("lastSupervisorId");
+  if (remembered && supervisors.some(s => s.id === remembered)) {
+    whoSel.value = remembered;
+  }
+  selectedSupervisorId = whoSel.value || null;
+
+  whoSel.addEventListener("change", () => {
+    selectedSupervisorId = whoSel.value || null;
+    localStorage.setItem("lastSupervisorId", selectedSupervisorId || "");
+    loadClassGrid();
+  });
+
+  selectedDate = todayISO();
+  const dp = document.getElementById("datePicker");
+  dp.value = selectedDate;
+  dp.max = todayISO();
+  dp.addEventListener("change", () => { selectedDate = dp.value || todayISO(); loadDay(); });
+
+  document.getElementById("reportMonth").value = todayISO().slice(0, 7);
+
+  loadDay();
+}
+
+function dowOf(dateStr) {
+  return new Date(dateStr + "T00:00:00").getDay();
+}
+
+function loadDay() {
+  const d = new Date(selectedDate + "T00:00:00");
+  const names = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  document.getElementById("dateLabel").textContent = `${names[d.getDay()]} — ${d.toLocaleDateString("ar-DZ")}`;
+  renderRail();
+}
+
+function renderRail() {
+  const track = document.getElementById("railTrack");
+  track.innerHTML = "";
+  const dow = dowOf(selectedDate);
+  if (dow > 4) {
+    track.innerHTML = `<div class="loading-text" style="padding:8px 0;">عطلة — لا حصص في هذا اليوم</div>`;
+    document.getElementById("classGrid").innerHTML = "";
+    return;
+  }
+  let active = null;
+  if (selectedDate === todayISO()) {
+    const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes();
+    active = TIMETABLE_PERIODS.find(p => {
+      const [s, e] = p.time.split(/[–-]/).map(t => { const [h, m] = t.trim().split(":").map(Number); return h * 60 + m; });
+      return nowMin >= s && nowMin <= e;
+    });
+  }
+  if (!selectedSlot) selectedSlot = active ? active.slot : TIMETABLE_PERIODS[0].slot;
+
+  TIMETABLE_PERIODS.forEach(p => {
+    const btn = document.createElement("button");
+    btn.className = "rail-stop" + (selectedSlot === p.slot ? " active" : "") + (active && active.slot === p.slot ? " active" : "");
+    btn.innerHTML = `<div class="dot"></div><div class="label">${p.label}</div>`;
+    btn.onclick = () => { selectedSlot = p.slot; renderRail(); loadClassGrid(); };
+    track.appendChild(btn);
+  });
+  loadClassGrid();
+}
+
+async function loadClassGrid() {
+  const grid = document.getElementById("classGrid");
+  if (!selectedSlot) return;
+  grid.innerHTML = `<div class="loading-text">جاري التحميل...</div>`;
+
+  const dow = dowOf(selectedDate);
+  const [{ data: tt }, { data: cov }] = await Promise.all([
+    db.from("timetable_entries").select("class_id, subject, teacher_label").eq("day_of_week", dow).eq("period_slot", selectedSlot),
+    db.from("coverage_records").select("id, class_id, subject, teacher_label, note, supervisors(full_name)").eq("record_date", selectedDate).eq("period_slot", selectedSlot),
+  ]);
+  ttMap = {}; (tt || []).forEach(r => ttMap[r.class_id] = r);
+  coverageMap = {}; (cov || []).forEach(r => coverageMap[r.class_id] = r);
+
+  grid.innerHTML = "";
+  allClasses.forEach(c => {
+    const info = ttMap[c.id];
+    const covered = coverageMap[c.id];
+    const card = document.createElement("div");
+    card.className = "class-card";
+    card.innerHTML = `
+      ${covered ? `<span class="covered-badge">تمت المداومة</span>` : ""}
+      <div class="cname">${c.name}</div>
+      <div class="tt-info">${info ? `<b>${info.subject || ""}</b><br>${info.teacher_label || ""}` : "لا توجد بيانات في استعمال الزمن"}</div>
+    `;
+    card.onclick = () => covered ? openViewModal(c, covered) : openConfirmModal(c, info);
+    grid.appendChild(card);
+  });
+}
+
+function openConfirmModal(cls, info) {
+  if (!selectedSupervisorId) { showToast("اختر المشرف (أنا) أولاً"); return; }
+  activeClass = cls;
+  document.getElementById("confirmTitle").textContent = `مداومة في ${cls.name}`;
+  const p = TIMETABLE_PERIODS.find(x => x.slot === selectedSlot);
+  document.getElementById("confirmSub").textContent = `الحصة ${selectedSlot} (${p ? p.time : ""}) — ${selectedDate}`;
+  document.getElementById("cSubject").value = info ? (info.subject || "") : "";
+  document.getElementById("cTeacher").value = info ? (info.teacher_label || "") : "";
+  document.getElementById("cNote").value = "";
+  document.getElementById("confirmModal").classList.add("open");
+}
+function closeConfirmModal() { document.getElementById("confirmModal").classList.remove("open"); }
+document.getElementById("confirmModal").addEventListener("click", (e) => { if (e.target.id === "confirmModal") closeConfirmModal(); });
+
+document.getElementById("confirmSaveBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("confirmSaveBtn");
+  btn.disabled = true; btn.textContent = "جاري الحفظ...";
+
+  const { error } = await db.from("coverage_records").insert({
+    supervisor_id: selectedSupervisorId,
+    record_date: selectedDate,
+    day_of_week: dowOf(selectedDate),
+    period_slot: selectedSlot,
+    class_id: activeClass.id,
+    subject: document.getElementById("cSubject").value.trim() || null,
+    teacher_label: document.getElementById("cTeacher").value.trim() || null,
+    note: document.getElementById("cNote").value.trim() || null,
+    recorded_by: profile.id,
+  });
+
+  btn.disabled = false; btn.textContent = "تأكيد المداومة";
+  if (error) { showToast("حدث خطأ أثناء الحفظ"); return; }
+  showToast("تم تسجيل المداومة ✓");
+  closeConfirmModal();
+  loadClassGrid();
+});
+
+function openViewModal(cls, covered) {
+  document.getElementById("viewDetails").innerHTML =
+    `<b>${cls.name}</b> — ${covered.subject || ""} — الأستاذ: ${covered.teacher_label || "—"}<br>
+     المشرف: ${covered.supervisors ? covered.supervisors.full_name : "—"}${covered.note ? "<br>ملاحظة: " + covered.note : ""}`;
+  document.getElementById("deleteCoverageBtn").onclick = async () => {
+    await db.from("coverage_records").delete().eq("id", covered.id);
+    closeViewModal();
+    showToast("تم الحذف");
+    loadClassGrid();
+  };
+  document.getElementById("viewModal").classList.add("open");
+}
+function closeViewModal() { document.getElementById("viewModal").classList.remove("open"); }
+document.getElementById("viewModal").addEventListener("click", (e) => { if (e.target.id === "viewModal") closeViewModal(); });
+
+// ===== التقرير الشهري =====
+document.getElementById("printReportBtn").addEventListener("click", async () => {
+  const supId = document.getElementById("reportSupervisor").value;
+  const monthVal = document.getElementById("reportMonth").value;
+  if (!supId || !monthVal) { showToast("اختر المشرف والشهر"); return; }
+
+  const sup = supervisors.find(s => s.id === supId);
+  const [y, m] = monthVal.split("-").map(Number);
+  const start = `${y}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  const { data: records } = await db
+    .from("coverage_records")
+    .select("record_date, period_slot, subject, teacher_label, note, classes(name)")
+    .eq("supervisor_id", supId)
+    .gte("record_date", start).lte("record_date", end)
+    .order("record_date");
+
+  const rows = records || [];
+  const monthLabel = new Date(start + "T00:00:00").toLocaleDateString("ar-DZ", { year: "numeric", month: "long" });
+
+  let html = `
+  <html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>تقرير المداومة الشهري</title>
+  <style>
+    body{font-family:Arial,Tahoma,sans-serif; padding:26px; color:#111;}
+    .head{display:flex; justify-content:space-between; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:16px; font-size:13px;}
+    h1{font-size:18px; text-align:center; margin:6px 0 4px;}
+    .sub{text-align:center; margin-bottom:16px; font-size:14px;}
+    table{width:100%; border-collapse:collapse; margin-bottom:16px;}
+    th,td{border:1px solid #999; padding:7px 10px; text-align:center; font-size:12.5px;}
+    th{background:#eee;}
+    .total{font-weight:bold; font-size:14px; margin-bottom:20px;}
+    .sign{display:flex; justify-content:space-between; margin-top:50px; font-size:13px;}
+    .sign div{text-align:center; width:30%;}
+    .line{border-top:1px solid #333; margin-top:36px;}
+  </style></head><body>
+    <div class="head"><span>${SCHOOL_NAME}<br>السنة الدراسية: ${SCHOOL_YEAR}</span><span>الجمهورية الجزائرية الديمقراطية الشعبية<br>وزارة التربية الوطنية</span></div>
+    <h1>تقرير المداومة الشهري</h1>
+    <div class="sub">المشرف: ${sup ? sup.full_name : ""} — ${monthLabel}</div>
+    <table>
+      <tr><th>التاريخ</th><th>الحصة</th><th>القسم</th><th>المادة</th><th>الأستاذ الغائب</th><th>ملاحظة</th></tr>
+      ${rows.map(r => `<tr><td>${r.record_date}</td><td>${r.period_slot}</td><td>${r.classes ? r.classes.name : ""}</td><td>${r.subject || ""}</td><td>${r.teacher_label || ""}</td><td>${r.note || ""}</td></tr>`).join("") || `<tr><td colspan="6">لا توجد مداومات مسجّلة هذا الشهر</td></tr>`}
+    </table>
+    <div class="total">إجمالي ساعات المداومة: ${rows.length} ساعة</div>
+    <div class="sign">
+      <div>مشرف التربية<div class="line"></div></div>
+      <div>مستشار التربية<div class="line"></div></div>
+      <div>المدير<div class="line"></div></div>
+    </div>
+  </body></html>`;
+  const w = window.open("", "_blank");
+  w.document.write(html);
+  w.document.close();
+});
+
+init();
+</script>
+<div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
+</body>
+</html>
