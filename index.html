@@ -40,7 +40,7 @@
     const { data: { session } } = await db.auth.getSession();
     if (session) {
       const { data: profile } = await db.from("users").select("role").eq("auth_id", session.user.id).single();
-      if (profile) window.location.href = profile.role === "admin" ? "admin.html" : "teacher.html";
+      if (profile) window.location.href = profile.role === "teacher" ? "teacher.html" : "admin.html";
     }
   })();
 
@@ -82,7 +82,7 @@
       return;
     }
 
-    window.location.href = profile.role === "admin" ? "admin.html" : "teacher.html";
+    window.location.href = profile.role === "teacher" ? "teacher.html" : "admin.html";
   });
 </script>
 <div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
