@@ -4,9 +4,10 @@ const NAV_ITEMS = [
   { key: "admin",     href: "admin.html",     icon: "📋", label: "الرئيسية",         roles: ["admin", "supervisor"] },
   { key: "students",  href: "students.html",  icon: "👥", label: "التلاميذ",          roles: ["admin"] },
   { key: "import",    href: "import.html",    icon: "📥", label: "استيراد التلاميذ",   roles: ["admin"] },
-  { key: "teachers",  href: "teachers.html",  icon: "🧑‍🏫", label: "الأساتذة",          roles: ["admin"] },
+  { key: "teachers",  href: "teachers.html",  icon: "👨‍💼", label: "الأساتذة",          roles: ["admin"] },
   { key: "timetable", href: "timetable.html", icon: "🗓️", label: "استعمال الزمن",     roles: ["admin"] },
-  { key: "duty",      href: "duty.html",      icon: "🛡️", label: "جدول الحراسة",      roles: ["admin", "supervisor"] },
+  { key: "duty",      href: "duty.html",      icon: "🛡️", label: "جدول المشرفين",      roles: ["admin", "supervisor"] },
+  { key: "coverage",  href: "coverage.html",  icon: "🔄", label: "المداومة",          roles: ["admin", "supervisor"] },
   { key: "reports",   href: "reports.html",   icon: "📊", label: "التقارير",          roles: ["admin", "supervisor"] },
   { key: "census",    href: "census.html",    icon: "🧮", label: "الحساب الدوري",     roles: ["admin"] },
 ];
