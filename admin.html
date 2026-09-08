@@ -70,7 +70,6 @@
 
 <script src="assets/config.js"></script>
 <script src="assets/sidebar.js"></script>
-<script>renderSidebar("admin");</script>
 <script>
 let profile = null;
 let selectedSlot = null;
@@ -103,10 +102,11 @@ function periodStatus(p) {
 }
 
 async function init() {
-  profile = await requireSession("admin");
+  profile = await requireSession(["admin", "supervisor"]);
   if (!profile) return;
 
   document.getElementById("adminName").textContent = profile.full_name;
+  renderSidebar("admin", profile.role);
 
   selectedDate = todayISO();
   const picker = document.getElementById("datePicker");
