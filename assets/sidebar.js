@@ -6,7 +6,7 @@ const NAV_ITEMS = [
   { key: "import",    href: "import.html",    icon: "upload",           label: "استيراد التلاميذ", roles: ["admin"] },
   { key: "teachers",  href: "teachers.html",  icon: "user-round",       label: "الأساتذة",        roles: ["admin"] },
   { key: "timetable", href: "timetable.html", icon: "calendar-days",    label: "استعمال الزمن",   roles: ["admin"] },
-  { key: "duty",      href: "duty.html",      icon: "shield-check",     label: "جدول الحراسة",    roles: ["admin", "supervisor"] },
+  { key: "duty",      href: "duty.html",      icon: "shield-check",     label: "جدول المشرفين",    roles: ["admin", "supervisor"] },
   { key: "coverage",  href: "coverage.html",  icon: "refresh-cw",       label: "المداومة",        roles: ["admin", "supervisor"] },
   { key: "reports",   href: "reports.html",   icon: "bar-chart-3",      label: "التقارير",        roles: ["admin", "supervisor"] },
   { key: "census",    href: "census.html",    icon: "calculator",       label: "الحساب الدوري",   roles: ["admin"] },
