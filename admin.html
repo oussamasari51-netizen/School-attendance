@@ -29,6 +29,13 @@
 
 <div class="page">
 
+  <div class="kpi-strip" id="kpiStrip">
+    <div class="kpi-mini"><div class="kval">…</div><div class="klabel">تلميذ مسجّل</div></div>
+    <div class="kpi-mini"><div class="kval">…</div><div class="klabel">قسم</div></div>
+    <div class="kpi-mini"><div class="kval">…</div><div class="klabel">أستاذ</div></div>
+    <div class="kpi-mini"><div class="kval">…</div><div class="klabel">غياب اليوم</div></div>
+  </div>
+
   <div class="periods-rail">
     <div class="rail-head">
       <h2>خط الحصص</h2>
@@ -78,6 +85,24 @@ let selectedDate = null;
 let classesCache = [];
 const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
+async function loadKpiStrip() {
+  const [{ count: studentCount }, { count: classCount }, { count: teacherCount }, { data: todayRecs }] = await Promise.all([
+    db.from("students").select("id", { count: "exact", head: true }).eq("active", true),
+    db.from("classes").select("id", { count: "exact", head: true }),
+    db.from("teachers").select("id", { count: "exact", head: true }),
+    db.from("attendance_records").select("status").eq("record_date", todayISO()),
+  ]);
+  const absentToday = (todayRecs || []).filter(r => r.status !== "تسوية وضعية").length;
+
+  const strip = document.getElementById("kpiStrip");
+  strip.innerHTML = `
+    <div class="kpi-mini"><div class="kval">${studentCount ?? 0}</div><div class="klabel">تلميذ مسجّل</div></div>
+    <div class="kpi-mini"><div class="kval">${classCount ?? 0}</div><div class="klabel">قسم</div></div>
+    <div class="kpi-mini"><div class="kval">${teacherCount ?? 0}</div><div class="klabel">أستاذ</div></div>
+    <div class="kpi-mini"><div class="kval">${absentToday}</div><div class="klabel">غياب اليوم</div></div>
+  `;
+}
+
 function fmtDateOf(iso) {
   const d = new Date(iso + "T00:00:00");
   return `${dayNames[d.getDay()]} — ${d.toLocaleDateString("ar-DZ")}`;
@@ -107,6 +132,7 @@ async function init() {
 
   document.getElementById("adminName").textContent = profile.full_name;
   renderSidebar("admin", profile.role);
+  loadKpiStrip();
 
   selectedDate = todayISO();
   const picker = document.getElementById("datePicker");
