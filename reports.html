@@ -5,10 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>التقارير — نظام الغيابات</title>
 <link rel="stylesheet" href="assets/style.css">
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1e293b">
-<link rel="apple-touch-icon" href="assets/icon-192.png">
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
@@ -457,15 +453,7 @@ document.getElementById("printBtn").addEventListener("click", () => {
       <div>ختم المؤسسة<div class="line">&nbsp;</div></div>
     </div>
     <div class="footer">تم إنشاء هذا التقرير آلياً بواسطة نظام تسجيل الغيابات — ${new Date().toLocaleString("ar-DZ")}</div>
-  
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW registration failed:', err));
-  });
-}
-</script>
-</body></html>`;
+  </body></html>`;
 
   const w = window.open("", "_blank");
   w.document.write(html);
