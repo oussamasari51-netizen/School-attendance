@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تسجيل الدخول — برنامج الناظر</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/pwa.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -35,7 +36,6 @@
 
 <script src="assets/config.js"></script>
 <script>
-  // إذا كان المستخدم مسجّل دخوله مسبقاً، حوّله مباشرة
   (async () => {
     const { data: { session } } = await db.auth.getSession();
     if (session) {
