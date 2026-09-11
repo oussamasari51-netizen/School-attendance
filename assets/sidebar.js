@@ -12,8 +12,27 @@ if (!document.querySelector('link[rel="manifest"]')) {
   document.head.appendChild(link);
 }
 
-// ===== القائمة الجانبية الموحّدة لصفحات الناظر والمشرف (الأصلية) =====
+// ===== التقاط حدث تثبيت التطبيق (PWA Install Prompt) =====
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const pwaBtn = document.getElementById('pwaInstallBtn');
+  if (pwaBtn) pwaBtn.style.display = 'flex';
+});
 
+async function installPWA() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') {
+    const pwaBtn = document.getElementById('pwaInstallBtn');
+    if (pwaBtn) pwaBtn.style.display = 'none';
+  }
+  deferredPrompt = null;
+}
+
+// ===== القائمة الجانبية الموحّدة =====
 const NAV_ITEMS = [
   { key: "admin",     href: "admin.html",     icon: "layout-dashboard", label: "الرئيسية",       roles: ["admin", "supervisor"] },
   { key: "students",  href: "students.html",  icon: "users",            label: "التلاميذ",        roles: ["admin"] },
@@ -26,7 +45,6 @@ const NAV_ITEMS = [
   { key: "census",    href: "census.html",    icon: "calculator",       label: "الحساب الدوري",   roles: ["admin"] },
 ];
 
-// تحميل مكتبة الأيقونات مرة واحدة تلقائياً (لا حاجة لتعديل كل صفحة يدوياً)
 (function loadLucide() {
   if (window.lucide || document.getElementById("lucide-cdn")) return;
   const s = document.createElement("script");
@@ -69,6 +87,11 @@ function renderSidebar(activeKey, role) {
         <button class="theme-toggle" onclick="toggleTheme()" title="الوضع الليلي">${icon("moon")}</button>
         <button class="sb-toggle" onclick="toggleSidebar()" title="طي القائمة">${icon("panel-right-close")}</button>
       </div>
+      
+      <button id="pwaInstallBtn" onclick="installPWA()" class="btn-primary" style="display:none; width:100%; margin-bottom:12px; align-items:center; justify-content:center; gap:8px; font-size:13px; padding:10px;">
+        ${icon("download")} <span>تثبيت التطبيق</span>
+      </button>
+
       <div class="sb-school">
         <b>${typeof SCHOOL_NAME !== "undefined" ? SCHOOL_NAME : ""}</b>
         السنة الدراسية ${typeof SCHOOL_YEAR !== "undefined" ? SCHOOL_YEAR : ""}
@@ -85,10 +108,9 @@ function renderSidebar(activeKey, role) {
   `;
 
   if (window.lucide) window.lucide.createIcons();
-  else { const t = setInterval(() => { if (window.lucide) { window.lucide.createIcons(); clearInterval(t); } }, 150); }
 
   if (localStorage.getItem("sidebarCollapsed") === "1") {
-    document.querySelector(".app-shell").classList.add("sidebar-collapsed");
+    document.querySelector(".app-shell")?.classList.add("sidebar-collapsed");
   }
 
   applyTheme();
@@ -97,15 +119,17 @@ function renderSidebar(activeKey, role) {
 
 function toggleSidebar() {
   const shell = document.querySelector(".app-shell");
-  shell.classList.toggle("sidebar-collapsed");
-  localStorage.setItem("sidebarCollapsed", shell.classList.contains("sidebar-collapsed") ? "1" : "0");
+  if (shell) {
+    shell.classList.toggle("sidebar-collapsed");
+    localStorage.setItem("sidebarCollapsed", shell.classList.contains("sidebar-collapsed") ? "1" : "0");
+  }
 }
 
-// ===== الوضع الليلي =====
 function applyTheme() {
   const saved = localStorage.getItem("theme") || "light";
   document.documentElement.setAttribute("data-theme", saved);
 }
+
 function toggleTheme() {
   const current = document.documentElement.getAttribute("data-theme") || "light";
   const next = current === "dark" ? "light" : "dark";
@@ -113,14 +137,13 @@ function toggleTheme() {
   localStorage.setItem("theme", next);
 }
 
-// ===== لون هوية المؤسسة (يُقرأ ويُطبَّق لكل الأدوار، والتعديل خاص بالناظر فقط) =====
 async function loadAndApplyBrandColor(withPickerUI) {
   let saved = null;
   try {
     const { data } = await db.from("app_settings").select("value").eq("key", "brand_color");
     saved = (data && data[0]) ? data[0].value : null;
     if (saved) applyBrandColor(saved);
-  } catch (e) { /* الجدول قد لا يكون موجوداً بعد، تجاهل بصمت */ }
+  } catch (e) {}
 
   if (!withPickerUI) return;
   const picker = document.getElementById("brandColorPicker");
@@ -137,22 +160,22 @@ async function loadAndApplyBrandColor(withPickerUI) {
 
 function applyBrandColor(hex) {
   document.documentElement.style.setProperty("--primary", hex);
-  // درجة أغمق تلقائياً للتفاعل (hover/press)
   const dark = shadeColor(hex, -18);
   document.documentElement.style.setProperty("--primary-dark", dark);
   document.documentElement.style.setProperty("--primary-glass", `linear-gradient(135deg, ${hexToRgba(hex,0.90)}, ${hexToRgba(dark,0.85)})`);
 }
+
 function shadeColor(hex, percent) {
   const num = parseInt(hex.replace("#", ""), 16);
   let r = (num >> 16) + percent, g = ((num >> 8) & 0x00FF) + percent, b = (num & 0x0000FF) + percent;
   r = Math.min(255, Math.max(0, r)); g = Math.min(255, Math.max(0, g)); b = Math.min(255, Math.max(0, b));
   return "#" + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
 }
+
 function hexToRgba(hex, alpha) {
   const num = parseInt(hex.replace("#", ""), 16);
   const r = num >> 16, g = (num >> 8) & 0x00FF, b = num & 0x0000FF;
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-// تطبيق الثيم فوراً حتى قبل رسم القائمة (يمنع "ومضة" الوضع النهاري عند تحميل صفحة في الوضع الليلي)
 applyTheme();
