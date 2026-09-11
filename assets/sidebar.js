@@ -1,38 +1,3 @@
-// ===== تسجيل الـ Service Worker وربط PWA Manifest =====
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration failed:', err));
-  });
-}
-
-if (!document.querySelector('link[rel="manifest"]')) {
-  const link = document.createElement('link');
-  link.rel = 'manifest';
-  link.href = './manifest.json';
-  document.head.appendChild(link);
-}
-
-// ===== التقاط حدث تثبيت التطبيق (PWA Install Prompt) =====
-let deferredPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  const pwaBtn = document.getElementById('pwaInstallBtn');
-  if (pwaBtn) pwaBtn.style.display = 'flex';
-});
-
-async function installPWA() {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  const { outcome } = await deferredPrompt.userChoice;
-  if (outcome === 'accepted') {
-    const pwaBtn = document.getElementById('pwaInstallBtn');
-    if (pwaBtn) pwaBtn.style.display = 'none';
-  }
-  deferredPrompt = null;
-}
-
-// ===== القائمة الجانبية الموحّدة =====
 const NAV_ITEMS = [
   { key: "admin",     href: "admin.html",     icon: "layout-dashboard", label: "الرئيسية",       roles: ["admin", "supervisor"] },
   { key: "students",  href: "students.html",  icon: "users",            label: "التلاميذ",        roles: ["admin"] },
