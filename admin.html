@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>لوحة الناظر — نظام الغيابات</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/pwa.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -109,7 +110,6 @@ function fmtDateOf(iso) {
 }
 
 function parseTime(str) {
-  // "08:00–09:00" -> {startMin, endMin}
   const parts = str.split(/[–-]/).map(s => s.trim());
   const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
   return { start: toMin(parts[0]), end: toMin(parts[1]) };
