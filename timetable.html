@@ -86,7 +86,7 @@
       <h1 style="font-size:16px; margin-bottom:6px;">استيراد جماعي</h1>
       <p class="sub" style="margin-bottom:16px;">
         ملف Excel/CSV بالأعمدة التالية بالضبط (بهذا الترتيب): <br>
-        <b>القسم، اليوم، الحصة، المادة، الأستاذ، القاعة</b><br>
+        <b>القسم، اليوم، الحصة، المادة، الأستاذ، القاعة، المجموعة</b><br>
         اليوم: رقم من 0 (الأحد) إلى 4 (الخميس) أو اسم اليوم بالعربية. الحصة: رقم من 1 إلى 8.
       </p>
       <input type="file" id="importFile" accept=".xlsx,.xls,.csv">
@@ -185,7 +185,7 @@ function renderClassGrid() {
 async function saveCell(el) {
   const day = parseInt(el.dataset.day, 10), slot = parseInt(el.dataset.slot, 10), field = el.dataset.field;
   const key = `${day}_${slot}`;
-  const existing = currentClassEntries[key] || { class_id: selectedClassId, day_of_week: day, period_slot: slot };
+  const existing = currentClassEntries[key] || { class_id: selectedClassId, day_of_week: day, period_slot: slot, group_label: "" };
   existing[field] = el.value.trim();
 
   // لا تُنشئ خانة فارغة تماماً
@@ -196,7 +196,7 @@ async function saveCell(el) {
   }
 
   const { data, error } = await db.from("timetable_entries")
-    .upsert(existing, { onConflict: "class_id,day_of_week,period_slot" })
+    .upsert(existing, { onConflict: "class_id,day_of_week,period_slot,group_label" })
     .select().single();
   if (error) { showToast("حدث خطأ أثناء الحفظ"); return; }
   currentClassEntries[key] = data;
@@ -299,6 +299,7 @@ document.getElementById("importFile").addEventListener("change", async (e) => {
       subject: String(r["المادة"] || "").trim() || null,
       teacher_label: String(r["الأستاذ"] || "").trim() || null,
       room: String(r["القاعة"] || "").trim() || null,
+      group_label: String(r["المجموعة"] || "").trim() || ""
     };
   }).filter(r => r.period_slot && !isNaN(r.day_of_week));
 
@@ -318,7 +319,7 @@ document.getElementById("confirmImportBtn").addEventListener("click", async () =
   let done = 0;
   for (let i = 0; i < valid.length; i += 200) {
     const chunk = valid.slice(i, i + 200);
-    const { error } = await db.from("timetable_entries").upsert(chunk, { onConflict: "class_id,day_of_week,period_slot" });
+    const { error } = await db.from("timetable_entries").upsert(chunk, { onConflict: "class_id,day_of_week,period_slot,group_label" });
     if (error) { showToast("حدث خطأ أثناء الاستيراد"); btn.disabled = false; btn.textContent = "تأكيد الاستيراد"; return; }
     done += chunk.length;
   }
