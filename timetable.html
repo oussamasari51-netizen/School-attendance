@@ -9,7 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   .tabs { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
-  .tab-btn { background:var(--surface); border:1.5px solid var(--line); color:var(--ink-soft); padding:10px 20px; border-radius:10px; font-weight:700; }
+  .tab-btn { background:var(--surface); border:1.5px solid var(--line); color:var(--ink-soft); padding:10px 20px; border-radius:10px; font-weight:700; cursor:pointer; }
   .tab-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
   table.tt { width:100%; border-collapse:collapse; background:var(--surface); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); }
   table.tt th, table.tt td { border:1px solid var(--paper); padding:5px; text-align:center; vertical-align:top; font-size:12px; }
@@ -27,80 +27,78 @@
 <body>
 
 <div class="app-shell">
-<div id="sidebarMount"></div>
-<div class="main-area">
+  <div id="sidebarMount"></div>
+  <div class="main-area">
 
-<div class="topbar">
-  <div class="brand">
-    <div class="icon">🗓️</div>
-    <div>
-      <h1>استعمال الزمن</h1>
-      <div class="meta">جدول الحصص الأسبوعي — حسب القسم، الأستاذ، أو القاعة</div>
-    </div>
-  </div>
-  <div class="user-chip">
-    <span id="adminName">...</span>
-    <button onclick="logout()">خروج</button>
-  </div>
-</div>
-
-<div class="page">
-
-  <div class="tabs">
-    <button class="tab-btn active" id="tabClass">حسب القسم</button>
-    <button class="tab-btn" id="tabTeacher">حسب الأستاذ</button>
-    <button class="tab-btn" id="tabRoom">حسب القاعة</button>
-    <button class="tab-btn" id="tabImport">📥 استيراد جماعي</button>
-  </div>
-
-  <!-- حسب القسم -->
-  <div id="viewClass">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-      <select id="classSelect" class="datepick-inline"></select>
-      <button class="btn-ghost" id="printClassBtn">🖨️ طباعة</button>
-    </div>
-    <div style="overflow-x:auto;"><table class="tt" id="classGrid"></table></div>
-  </div>
-
-  <!-- حسب الأستاذ -->
-  <div id="viewTeacher" style="display:none;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-      <select id="teacherSelect" class="datepick-inline"></select>
-      <button class="btn-ghost" id="printTeacherBtn">🖨️ طباعة</button>
-    </div>
-    <div style="overflow-x:auto;"><table class="tt" id="teacherGrid"></table></div>
-  </div>
-
-  <!-- حسب القاعة -->
-  <div id="viewRoom" style="display:none;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-      <select id="roomSelect" class="datepick-inline"></select>
-      <button class="btn-ghost" id="printRoomBtn">🖨️ طباعة</button>
-    </div>
-    <div style="overflow-x:auto;"><table class="tt" id="roomGrid"></table></div>
-  </div>
-
-  <!-- استيراد -->
-  <div id="viewImport" style="display:none;">
-    <div class="auth-card" style="max-width:640px; padding:26px;">
-      <h1 style="font-size:16px; margin-bottom:6px;">استيراد جماعي</h1>
-      <p class="sub" style="margin-bottom:16px;">
-        ملف Excel/CSV بالأعمدة التالية بالضبط (بهذا الترتيب): <br>
-        <b>القسم، اليوم، الحصة، المادة، الأستاذ، القاعة، المجموعة</b><br>
-        اليوم: رقم من 0 (الأحد) إلى 4 (الخميس) أو اسم اليوم بالعربية. الحصة: رقم من 1 إلى 8.
-      </p>
-      <input type="file" id="importFile" accept=".xlsx,.xls,.csv">
-      <div id="importStatus" class="loading-text" style="display:none;"></div>
-      <div id="importPreview" style="display:none; margin-top:14px;">
-        <div id="importSummary" style="font-size:13.5px; margin-bottom:10px;"></div>
-        <button class="btn-primary" id="confirmImportBtn" style="width:100%;">تأكيد الاستيراد</button>
+    <div class="topbar">
+      <div class="brand">
+        <div class="icon">🗓️</div>
+        <div>
+          <h1>استعمال الزمن</h1>
+          <div class="meta">جدول الحصص الأسبوعي — حسب القسم، الأستاذ، أو القاعة</div>
+        </div>
+      </div>
+      <div class="user-chip">
+        <span id="adminName">...</span>
+        <button onclick="logout()">خروج</button>
       </div>
     </div>
-  </div>
 
-</div>
+    <div class="page">
+      <div class="tabs">
+        <button class="tab-btn active" id="tabClass">حسب القسم</button>
+        <button class="tab-btn" id="tabTeacher">حسب الأستاذ</button>
+        <button class="tab-btn" id="tabRoom">حسب القاعة</button>
+        <button class="tab-btn" id="tabImport">📥 استيراد جماعي</button>
+      </div>
 
-</div><!-- /main-area -->
+      <!-- حسب القسم -->
+      <div id="viewClass">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <select id="classSelect" class="datepick-inline"></select>
+          <button class="btn-ghost" id="printClassBtn">🖨️ طباعة</button>
+        </div>
+        <div style="overflow-x:auto;"><table class="tt" id="classGrid"></table></div>
+      </div>
+
+      <!-- حسب الأستاذ -->
+      <div id="viewTeacher" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <select id="teacherSelect" class="datepick-inline"></select>
+          <button class="btn-ghost" id="printTeacherBtn">🖨️ طباعة</button>
+        </div>
+        <div style="overflow-x:auto;"><table class="tt" id="teacherGrid"></table></div>
+      </div>
+
+      <!-- حسب القاعة -->
+      <div id="viewRoom" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <select id="roomSelect" class="datepick-inline"></select>
+          <button class="btn-ghost" id="printRoomBtn">🖨️ طباعة</button>
+        </div>
+        <div style="overflow-x:auto;"><table class="tt" id="roomGrid"></table></div>
+      </div>
+
+      <!-- استيراد -->
+      <div id="viewImport" style="display:none;">
+        <div class="auth-card" style="max-width:640px; padding:26px;">
+          <h1 style="font-size:16px; margin-bottom:6px;">استيراد جماعي</h1>
+          <p class="sub" style="margin-bottom:16px;">
+            ملف Excel/CSV بالأعمدة التالية بالضبط (بهذا الترتيب): <br>
+            <b>القسم، اليوم، الحصة، المادة، الأستاذ، القاعة، المجموعة</b><br>
+            اليوم: رقم من 0 (الأحد) إلى 4 (الخميس) أو اسم اليوم بالعربية. الحصة: رقم من 1 إلى 8.
+          </p>
+          <input type="file" id="importFile" accept=".xlsx,.xls,.csv">
+          <div id="importStatus" class="loading-text" style="display:none;"></div>
+          <div id="importPreview" style="display:none; margin-top:14px;">
+            <div id="importSummary" style="font-size:13.5px; margin-bottom:10px;"></div>
+            <button class="btn-primary" id="confirmImportBtn" style="width:100%;">تأكيد الاستيراد</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-area -->
 </div><!-- /app-shell -->
 
 <script src="assets/config.js"></script>
@@ -110,7 +108,7 @@
 let profile = null;
 let allClasses = [];
 let selectedClassId = null;
-let currentClassEntries = {}; // `${day}_${slot}` -> row
+let currentClassEntries = {};
 
 async function init() {
   profile = await requireSession("admin");
@@ -137,7 +135,6 @@ async function populateFilterSelect(elId, column) {
   sel.innerHTML = values.length ? values.map(v => `<option value="${v}">${v}</option>`).join("") : `<option value="">لا توجد بيانات بعد</option>`;
 }
 
-// ===== التبويبات =====
 const TABS = { class: "viewClass", teacher: "viewTeacher", room: "viewRoom", import: "viewImport" };
 function switchTab(key) {
   Object.keys(TABS).forEach(k => document.getElementById(TABS[k]).style.display = k === key ? "block" : "none");
@@ -153,7 +150,6 @@ document.getElementById("tabTeacher").onclick = () => switchTab("teacher");
 document.getElementById("tabRoom").onclick = () => switchTab("room");
 document.getElementById("tabImport").onclick = () => switchTab("import");
 
-// ===== شبكة القسم (قابلة للتعديل) =====
 async function loadClassGrid() {
   const { data } = await db.from("timetable_entries").select("*").eq("class_id", selectedClassId);
   currentClassEntries = {};
@@ -188,7 +184,6 @@ async function saveCell(el) {
   const existing = currentClassEntries[key] || { class_id: selectedClassId, day_of_week: day, period_slot: slot, group_label: "" };
   existing[field] = el.value.trim();
 
-  // لا تُنشئ خانة فارغة تماماً
   if (!existing.subject && !existing.teacher_label && !existing.room) {
     if (existing.id) await db.from("timetable_entries").delete().eq("id", existing.id);
     delete currentClassEntries[key];
@@ -202,7 +197,6 @@ async function saveCell(el) {
   currentClassEntries[key] = data;
 }
 
-// ===== شبكة الأستاذ (للقراءة فقط) =====
 async function loadTeacherGrid() {
   const teacher = document.getElementById("teacherSelect").value;
   if (!teacher) { document.getElementById("teacherGrid").innerHTML = ""; return; }
@@ -210,7 +204,6 @@ async function loadTeacherGrid() {
   renderReadonlyGrid("teacherGrid", data || [], "classes");
 }
 
-// ===== شبكة القاعة (للقراءة فقط) =====
 async function loadRoomGrid() {
   const room = document.getElementById("roomSelect").value;
   if (!room) { document.getElementById("roomGrid").innerHTML = ""; return; }
@@ -234,7 +227,6 @@ function renderReadonlyGrid(tableId, rows, joinKey) {
   document.getElementById(tableId).innerHTML = html;
 }
 
-// ===== الطباعة =====
 function printGrid(title, tableId) {
   const tableHtml = document.getElementById(tableId).outerHTML;
   let html = `
@@ -256,6 +248,7 @@ function printGrid(title, tableId) {
   w.document.write(html);
   w.document.close();
 }
+
 document.getElementById("printClassBtn").onclick = () => {
   const cname = allClasses.find(c => c.id === selectedClassId);
   printGrid(`استعمال الزمن — قسم ${cname ? cname.name : ""}`, "classGrid");
@@ -267,7 +260,6 @@ document.getElementById("printRoomBtn").onclick = () => {
   printGrid(`استعمال الزمن — ${document.getElementById("roomSelect").value}`, "roomGrid");
 };
 
-// ===== الاستيراد الجماعي =====
 let parsedRows = [];
 document.getElementById("importFile").addEventListener("change", async (e) => {
   const file = e.target.files[0];
