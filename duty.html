@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>مهام مشرفي التربية — برنامج الناظر</title>
 <link rel="stylesheet" href="assets/style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e293b">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   table.duty-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); margin-bottom: 20px; }
@@ -266,7 +270,15 @@ document.getElementById("printBtn").addEventListener("click", () => {
       <div>مشرفة التربية العامة<br><br>ـــــــــــــ</div>
       <div>مشرف التربية<br><br>ـــــــــــــ</div>
     </div>
-  </body></html>`;
+  
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW registration failed:', err));
+  });
+}
+</script>
+</body></html>`;
   const w = window.open("", "_blank");
   w.document.write(html);
   w.document.close();
