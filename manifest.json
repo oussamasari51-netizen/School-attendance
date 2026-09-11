@@ -1,24 +1,23 @@
 {
-  "name": "برنامج الناظر — إدارة المؤسسة",
   "short_name": "الناظر",
-  "description": "تطبيق إدارة الحضور واستعمال الزمن للمؤسسات التعليمية",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#1e293b",
-  "orientation": "portrait-primary",
-  "dir": "rtl",
-  "lang": "ar",
+  "name": "برنامج الناظر للغيابات",
   "icons": [
     {
-      "src": "assets/icon-192.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/3429/3429149.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "assets/icon-512.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/3429/3429149.png",
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "start_url": "./admin.html",
+  "background_color": "#F5F2EA",
+  "theme_color": "#2563EB",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar"
 }
