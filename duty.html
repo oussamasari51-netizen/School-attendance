@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>مهام مشرفي التربية — برنامج الناظر</title>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style.css?v=2">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   table.duty-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); margin-bottom: 20px; }
@@ -47,6 +47,7 @@
   <div class="toolbar">
     <select id="supervisorSelect" class="datepick-inline"></select>
     <button class="btn-ghost" id="addSupervisorBtn">+ إضافة مشرف</button>
+    <button class="btn-ghost" id="editSupervisorBtn">✏️ تعديل الاسم</button>
     <button class="btn-ghost" id="delSupervisorBtn" style="color:var(--absent); background:var(--absent-light);">حذف هذا المشرف</button>
     <button class="btn-ghost" id="addRowBtn">+ إضافة صف زمني</button>
     <button class="btn-primary" id="printBtn">🖨️ طباعة صفحة المشرف</button>
@@ -73,8 +74,8 @@
 </div><!-- /main-area -->
 </div><!-- /app-shell -->
 
-<script src="assets/config.js"></script>
-<script src="assets/sidebar.js"></script>
+<script src="assets/config.js?v=2"></script>
+<script src="assets/sidebar.js?v=2"></script>
 <script>
 const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 let profile = null;
@@ -191,9 +192,27 @@ async function copyRowAcrossDays(taskId) {
   loadGridData();
 }
 
+// زر إضافة مشرف جديد بطلب الاسم
 document.getElementById("addSupervisorBtn").addEventListener("click", async () => {
-  const { error } = await db.from("supervisors").insert({ full_name: "مشرف جديد" });
-  if (error) { showToast("حدث خطأ"); return; }
+  const name = prompt("أدخل اسم المشرف الجديد:");
+  if (!name || !name.trim()) return;
+
+  const { error } = await db.from("supervisors").insert({ full_name: name.trim() });
+  if (error) { showToast("حدث خطأ أثناء إضافة المشرف"); return; }
+  showToast("تمت إضافة المشرف بنجاح");
+  loadSupervisors();
+});
+
+// زر تعديل اسم المشرف الحالي
+document.getElementById("editSupervisorBtn").addEventListener("click", async () => {
+  if (!currentSupervisorId) return;
+  const s = supervisors.find(x => x.id === currentSupervisorId);
+  const newName = prompt("تعديل اسم المشرف:", s ? s.full_name : "");
+  if (!newName || !newName.trim()) return;
+
+  const { error } = await db.from("supervisors").update({ full_name: newName.trim() }).eq("id", currentSupervisorId);
+  if (error) { showToast("حدث خطأ أثناء التعديل"); return; }
+  showToast("تم تعديل الاسم");
   loadSupervisors();
 });
 
@@ -211,6 +230,7 @@ document.getElementById("addRowBtn").addEventListener("click", async () => {
   if (error) { showToast("حدث خطأ"); return; }
   loadGridData();
 });
+
 async function deleteTask(id) {
   if (!confirm("حذف هذا الصف الزمني من جدول كل المشرفين؟")) return;
   await db.from("duty_tasks").delete().eq("id", id);
