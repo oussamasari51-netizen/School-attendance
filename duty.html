@@ -21,7 +21,7 @@
   .time-label-edit { width: 100%; border:none; background:transparent; font-weight:700; font-size:12.5px; text-align:right; }
   .time-time-edit { width: 100%; border:none; background:transparent; font-size:11px; color:var(--ink-soft); text-align:right; }
 
-  /* ==================== تصميم النافذة الزجاجية الفاخرة ==================== */
+  /* النافذة الزجاجية المنبثقة */
   .glass-backdrop {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
     background: rgba(15, 23, 42, 0.45);
@@ -57,7 +57,6 @@
   .glass-field input:focus { background: rgba(255, 255, 255, 0.25); border-color: #3b82f6; }
   .glass-field input::placeholder { color: rgba(255, 255, 255, 0.6); }
 
-  /* زر أزرق 3D مجسّم */
   .btn-3d-blue {
     width: 100%; margin-top: 10px; padding: 12px; border-radius: 14px; border: none;
     background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
@@ -128,8 +127,8 @@
 
 </div>
 
-</div><!-- /main-area -->
-</div><!-- /app-shell -->
+</div>
+</div>
 
 <!-- النافذة الزجاجية المنبثقة -->
 <div class="glass-backdrop" id="supervisorModal">
@@ -172,7 +171,9 @@ async function init() {
 }
 
 async function loadSupervisors() {
-  const { data } = await db.from("supervisors").select("id, full_name, role_title, assigned_classes").order("full_name");
+  const { data, error } = await db.from("supervisors").select("*").order("full_name");
+  if (error) console.error("Error loading supervisors:", error);
+  
   supervisors = data || [];
   const sel = document.getElementById("supervisorSelect");
   sel.innerHTML = supervisors.map(s => {
@@ -303,18 +304,38 @@ document.getElementById("saveSupervisorBtn").addEventListener("click", async () 
 
   if (!name) { showToast("يرجى كتابة اسم المشرف"); return; }
 
+  // كائن البيانات المحفوظة
+  const payload = { full_name: name };
+  if (role) payload.role_title = role;
+
+  let error = null;
+
   if (isEditMode) {
-    const { error } = await db.from("supervisors").update({ full_name: name, role_title: role }).eq("id", currentSupervisorId);
-    if (error) { showToast("حدث خطأ في التعديل"); return; }
-    showToast("تم تعديل بيانات المشرف");
+    const res = await db.from("supervisors").update(payload).eq("id", currentSupervisorId);
+    error = res.error;
+    // إذا ظهر خطأ بسبب عدم وجود عمود role_title، نحفظ الاسم فقط
+    if (error && error.message.includes("role_title")) {
+      const retry = await db.from("supervisors").update({ full_name: name }).eq("id", currentSupervisorId);
+      error = retry.error;
+    }
   } else {
-    const { error } = await db.from("supervisors").insert({ full_name: name, role_title: role });
-    if (error) { showToast("حدث خطأ في الإضافة"); return; }
-    showToast("تمت إضافة المشرف بنجاح");
+    const res = await db.from("supervisors").insert(payload);
+    error = res.error;
+    // إذا ظهر خطأ بسبب عدم وجود عمود role_title، نحفظ الاسم فقط
+    if (error && error.message.includes("role_title")) {
+      const retry = await db.from("supervisors").insert({ full_name: name });
+      error = retry.error;
+    }
   }
 
+  if (error) {
+    alert("خطأ أثناء الحفظ: " + error.message);
+    return;
+  }
+
+  showToast(isEditMode ? "تم تعديل بيانات المشرف" : "تمت إضافة المشرف بنجاح");
   closeModal();
-  loadSupervisors();
+  await loadSupervisors();
 });
 
 document.getElementById("delSupervisorBtn").addEventListener("click", async () => {
