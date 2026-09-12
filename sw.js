@@ -1,27 +1,27 @@
-const CACHE_NAME = 'al-nazir-v1';
+const CACHE_NAME = 'al-nazir-v2'; // تغيير الاسم لتدمير v1 القديم
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './admin.html',
   './students.html',
   './teachers.html',
+  './teachers.js',
   './timetable.html',
+  './timetable.js',
   './assets/style.css',
   './assets/sidebar.js',
   './assets/config.js'
 ];
 
-// تثبيت الـ Service Worker وتخزين الملفات الأساسية
+// تثبيت وتجاوز الانتظار
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
   );
   self.skipWaiting();
 });
 
-// تفعيل وتحديث الكاش القديم
+// تنظيف الكاش القديم (v1) فوراً
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -37,15 +37,23 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// جلب الملفات: التخديم من الكاش أولاً ثم الشبكة
+// الاستراتيجية الجديدة: حاول الجلب من الشبكة أولاً، إذا لم تتوفر شبكة استخدم الكاش
 self.addEventListener('fetch', (event) => {
-  // تجاهل طلبات API الخارجية لـ Supabase لتسليم البيانات المباشرة
   if (event.request.url.includes('supabase.co')) {
     return;
   }
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request);
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        // تحديث الكاش بالنسخة الجديدة فوراً
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request)) // استخدام الكاش فقط عند انقطاع الإنترنت
   );
 });
