@@ -20,6 +20,63 @@
   .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items:center; }
   .time-label-edit { width: 100%; border:none; background:transparent; font-weight:700; font-size:12.5px; text-align:right; }
   .time-time-edit { width: 100%; border:none; background:transparent; font-size:11px; color:var(--ink-soft); text-align:right; }
+
+  /* ==================== تصميم النافذة الزجاجية الفاخرة ==================== */
+  .glass-backdrop {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999; opacity: 0; pointer-events: none;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glass-backdrop.active { opacity: 1; pointer-events: auto; }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3), inset 0 0 15px rgba(255, 255, 255, 0.1);
+    border-radius: 20px; padding: 28px; width: 90%; max-width: 420px;
+    transform: scale(0.85) translateY(20px);
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    color: #fff;
+  }
+  .glass-backdrop.active .glass-card { transform: scale(1) translateY(0); }
+
+  .glass-card h3 { font-size: 18px; margin-bottom: 18px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+  
+  .glass-field { margin-bottom: 14px; text-align: right; }
+  .glass-field label { display: block; font-size: 12px; margin-bottom: 6px; opacity: 0.9; }
+  .glass-field input {
+    width: 100%; padding: 10px 14px; border-radius: 12px;
+    background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff; font-family: 'Tajawal', sans-serif; font-size: 13px; outline: none;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .glass-field input:focus { background: rgba(255, 255, 255, 0.25); border-color: #3b82f6; }
+  .glass-field input::placeholder { color: rgba(255, 255, 255, 0.6); }
+
+  /* زر أزرق 3D مجسّم */
+  .btn-3d-blue {
+    width: 100%; margin-top: 10px; padding: 12px; border-radius: 14px; border: none;
+    background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+    color: #fff; font-weight: 700; font-size: 14px; font-family: 'Tajawal', sans-serif;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #1e3a8a, 0 12px 20px rgba(29, 78, 216, 0.4);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+  .btn-3d-blue:hover { background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%); }
+  .btn-3d-blue:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 #1e3a8a, 0 4px 10px rgba(29, 78, 216, 0.4);
+  }
+
+  .btn-cancel-glass {
+    width: 100%; margin-top: 8px; padding: 8px; background: transparent; border: none;
+    color: rgba(255, 255, 255, 0.7); font-size: 12px; cursor: pointer; border-radius: 10px;
+  }
+  .btn-cancel-glass:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
 </style>
 </head>
 <body>
@@ -47,7 +104,7 @@
   <div class="toolbar">
     <select id="supervisorSelect" class="datepick-inline"></select>
     <button class="btn-ghost" id="addSupervisorBtn">+ إضافة مشرف</button>
-    <button class="btn-ghost" id="editSupervisorBtn">✏️ تعديل الاسم</button>
+    <button class="btn-ghost" id="editSupervisorBtn">✏️ تعديل المشرف</button>
     <button class="btn-ghost" id="delSupervisorBtn" style="color:var(--absent); background:var(--absent-light);">حذف هذا المشرف</button>
     <button class="btn-ghost" id="addRowBtn">+ إضافة صف زمني</button>
     <button class="btn-primary" id="printBtn">🖨️ طباعة صفحة المشرف</button>
@@ -74,6 +131,23 @@
 </div><!-- /main-area -->
 </div><!-- /app-shell -->
 
+<!-- النافذة الزجاجية المنبثقة -->
+<div class="glass-backdrop" id="supervisorModal">
+  <div class="glass-card">
+    <h3 id="modalTitle">🛡️ إضافة مشرف جديد</h3>
+    <div class="glass-field">
+      <label>الاسم الكامل</label>
+      <input type="text" id="supNameInput" placeholder="اللقب والاسم">
+    </div>
+    <div class="glass-field">
+      <label>الرتبة / الصفة</label>
+      <input type="text" id="supRoleInput" placeholder="مثال: مشرف رئيسي للتربية">
+    </div>
+    <button class="btn-3d-blue" id="saveSupervisorBtn">حفظ البيانات</button>
+    <button class="btn-cancel-glass" onclick="closeModal()">إلغاء</button>
+  </div>
+</div>
+
 <script src="assets/config.js?v=2"></script>
 <script src="assets/sidebar.js?v=2"></script>
 <script>
@@ -81,8 +155,9 @@ const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربع�
 let profile = null;
 let supervisors = [];
 let tasks = [];
-let cellsMap = {}; // `${taskId}_${day}` -> content (للمشرف الحالي فقط)
+let cellsMap = {};
 let currentSupervisorId = null;
+let isEditMode = false;
 
 async function init() {
   profile = await requireSession(["admin", "supervisor"]);
@@ -97,10 +172,14 @@ async function init() {
 }
 
 async function loadSupervisors() {
-  const { data } = await db.from("supervisors").select("id, full_name, assigned_classes").order("full_name");
+  const { data } = await db.from("supervisors").select("id, full_name, role_title, assigned_classes").order("full_name");
   supervisors = data || [];
   const sel = document.getElementById("supervisorSelect");
-  sel.innerHTML = supervisors.map(s => `<option value="${s.id}">${s.full_name}</option>`).join("");
+  sel.innerHTML = supervisors.map(s => {
+    const title = s.role_title ? ` (${s.role_title})` : "";
+    return `<option value="${s.id}">${s.full_name}${title}</option>`;
+  }).join("");
+
   if (supervisors.length) {
     currentSupervisorId = supervisors[0].id;
     sel.value = currentSupervisorId;
@@ -192,27 +271,49 @@ async function copyRowAcrossDays(taskId) {
   loadGridData();
 }
 
-// زر إضافة مشرف جديد بطلب الاسم
-document.getElementById("addSupervisorBtn").addEventListener("click", async () => {
-  const name = prompt("أدخل اسم المشرف الجديد:");
-  if (!name || !name.trim()) return;
+/* ==================== التحكم بالنافذة المنبثقة ==================== */
+function openModal(edit = false) {
+  isEditMode = edit;
+  const modal = document.getElementById("supervisorModal");
+  document.getElementById("modalTitle").textContent = edit ? "✏️ تعديل بيانات المشرف" : "🛡️ إضافة مشرف جديد";
+  
+  if (edit && currentSupervisorId) {
+    const s = supervisors.find(x => x.id === currentSupervisorId);
+    document.getElementById("supNameInput").value = s ? s.full_name : "";
+    document.getElementById("supRoleInput").value = s ? (s.role_title || "") : "";
+  } else {
+    document.getElementById("supNameInput").value = "";
+    document.getElementById("supRoleInput").value = "مشرف التربية";
+  }
+  
+  modal.classList.add("active");
+  document.getElementById("supNameInput").focus();
+}
 
-  const { error } = await db.from("supervisors").insert({ full_name: name.trim() });
-  if (error) { showToast("حدث خطأ أثناء إضافة المشرف"); return; }
-  showToast("تمت إضافة المشرف بنجاح");
-  loadSupervisors();
-});
+function closeModal() {
+  document.getElementById("supervisorModal").classList.remove("active");
+}
 
-// زر تعديل اسم المشرف الحالي
-document.getElementById("editSupervisorBtn").addEventListener("click", async () => {
-  if (!currentSupervisorId) return;
-  const s = supervisors.find(x => x.id === currentSupervisorId);
-  const newName = prompt("تعديل اسم المشرف:", s ? s.full_name : "");
-  if (!newName || !newName.trim()) return;
+document.getElementById("addSupervisorBtn").addEventListener("click", () => openModal(false));
+document.getElementById("editSupervisorBtn").addEventListener("click", () => openModal(true));
 
-  const { error } = await db.from("supervisors").update({ full_name: newName.trim() }).eq("id", currentSupervisorId);
-  if (error) { showToast("حدث خطأ أثناء التعديل"); return; }
-  showToast("تم تعديل الاسم");
+document.getElementById("saveSupervisorBtn").addEventListener("click", async () => {
+  const name = document.getElementById("supNameInput").value.trim();
+  const role = document.getElementById("supRoleInput").value.trim();
+
+  if (!name) { showToast("يرجى كتابة اسم المشرف"); return; }
+
+  if (isEditMode) {
+    const { error } = await db.from("supervisors").update({ full_name: name, role_title: role }).eq("id", currentSupervisorId);
+    if (error) { showToast("حدث خطأ في التعديل"); return; }
+    showToast("تم تعديل بيانات المشرف");
+  } else {
+    const { error } = await db.from("supervisors").insert({ full_name: name, role_title: role });
+    if (error) { showToast("حدث خطأ في الإضافة"); return; }
+    showToast("تمت إضافة المشرف بنجاح");
+  }
+
+  closeModal();
   loadSupervisors();
 });
 
@@ -273,7 +374,7 @@ document.getElementById("printBtn").addEventListener("click", () => {
   </style></head><body>
     <div class="head"><span>السنة الدراسية: ${SCHOOL_YEAR}</span><span>${SCHOOL_NAME}</span></div>
     <div class="wrap-h1"><h1>مهام مشرفي التربية</h1></div>
-    <div class="supname">مشرف التربية: ${s ? s.full_name : ""}</div>
+    <div class="supname">المشرف: ${s ? s.full_name : ""} ${s && s.role_title ? `(${s.role_title})` : ""}</div>
     <table>
       <tr><th>التوقيت</th>${DAYS.map(d => `<th>${d}</th>`).join("")}</tr>
       ${rows}
