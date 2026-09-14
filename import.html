@@ -35,10 +35,10 @@
   <div class="auth-card" style="max-width:none; padding:20px; margin-bottom:20px; border-right: 4px solid var(--absent, #e74c3c);">
     <h2 style="font-size:15px; margin-bottom:6px; color:var(--absent, #e74c3c);">⚠️ تجهيز النظام للسنة الدراسية الجديدة</h2>
     <p class="sub" style="margin-bottom:12px;">
-      إذا كنت تريد رفع قائمة السنة الجديدة بدلاً من القوائم القديمة، يُفضل مسح بيانات التلاميذ القدامى أولاً.
+      إذا كنت تريد رفع قائمة السنة الجديدة بدلاً من القوائم القديمة، يُفضل مسح بيانات التلاميذ القدامى والأقسام السابقة أولاً.
     </p>
     <button class="btn-primary" id="wipeBtn" style="background:#e74c3c; width:auto; padding:8px 16px; font-size:13px;">
-      🗑️ مسح جميع بيانات التلاميذ القدامى
+      🗑️ مسح جميع بيانات التلاميذ والأقسام القديمة
     </button>
   </div>
 
@@ -86,9 +86,9 @@ async function init() {
 }
 init();
 
-// زر مسح التلاميذ القدامى (معدل ليعمل بدون قيود)
+// زر المسح الشامل للتلاميذ والأقسام
 document.getElementById("wipeBtn").addEventListener("click", async () => {
-  if (!confirm("هل أنت متأكد من رغبتك في حذف جميع التلاميذ القدامى من قاعدة البيانات؟ لا يمكن التراجع عن هذه الخطوة.")) {
+  if (!confirm("هل أنت متأكد من رغبتك في حذف جميع التلاميذ والأقسام القديمة نهائياً؟")) {
     return;
   }
   const btn = document.getElementById("wipeBtn");
@@ -96,24 +96,28 @@ document.getElementById("wipeBtn").addEventListener("click", async () => {
   btn.textContent = "جاري المسح...";
 
   try {
-    // حاول الحذف باستخدام الشرط العام الأول
-    let { error } = await db.from("students").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    
-    // في حال وجود أي عائق أمان من Supabase يتم تجربة الشرط البديل
-    if (error) {
-      const res = await db.from("students").delete().gt("created_at", "1970-01-01");
-      error = res.error;
+    // 1. حذف جميع الغيابات أولاً لتجنب حظر المراجع Foreign Keys
+    await db.from("absences").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
+    // 2. حذف كافة التلاميذ
+    const { error: errStudents } = await db.from("students").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (errStudents) {
+      await db.from("students").delete().gt("created_at", "1970-01-01");
     }
 
-    if (error) throw error;
+    // 3. حذف كافة الأقسام
+    const { error: errClasses } = await db.from("classes").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (errClasses) {
+      await db.from("classes").delete().gt("created_at", "1970-01-01");
+    }
 
-    showResult("تم مسح جميع بيانات التلاميذ القدامى بنجاح. يمكنك الآن رفع القائمة الجديدة.", true);
+    showResult("تم مسح جميع بيانات التلاميذ والأقسام القديمة بنجاح من النظام.", true);
   } catch (err) {
     console.error("Wipe error:", err);
-    showResult("حدث خطأ أثناء المسح: " + (err.message || "يرجى التحقق من صلاحيات RLS في Supabase"), false);
+    showResult("حدث خطأ أثناء عملية المسح: " + (err.message || "تأكد من صلاحيات Supabase RLS"), false);
   } finally {
     btn.disabled = false;
-    btn.textContent = "🗑️ مسح جميع بيانات التلاميذ القدامى";
+    btn.textContent = "🗑️ مسح جميع بيانات التلاميذ والأقسام القديمة";
   }
 });
 
@@ -123,7 +127,7 @@ document.getElementById("fileInput").addEventListener("change", async (e) => {
 
   const statusBox = document.getElementById("statusBox");
   statusBox.style.display = "block";
-  statusBox.textContent = "جاري قراءة الملف وتفكيك الأقسام...";
+  statusBox.textContent = "جاري قراءة الملف وتفكيك الأقسام الـ 13...";
   document.getElementById("previewBox").style.display = "none";
   document.getElementById("resultBox").style.display = "none";
 
@@ -199,7 +203,7 @@ function parseWithSheetJS(file) {
   });
 }
 
-// دالة تفكيك ملفات PDF الخاصة بوزارة التربية الوطنية
+// دالة فك التشفير الحرفي لملفات PDF الوزارية
 async function parsePdfFile(file) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
   const arrayBuffer = await file.arrayBuffer();
@@ -214,7 +218,7 @@ async function parsePdfFile(file) {
     const textContent = await page.getTextContent();
     const rawText = textContent.items.map(item => item.str).join(" ");
 
-    // فك شفرة الكلمات المعكوسة الخاصة بالسنوات الدراسية
+    // تحديد المستوى
     if (rawText.includes("ﺳﺋ بﺋ") || rawText.includes("رابعة")) {
       currentLevelNum = 4;
     } else if (rawText.includes("ﺑﺋ الﺋ") || rawText.includes("ثالثة")) {
@@ -225,7 +229,7 @@ async function parsePdfFile(file) {
       currentLevelNum = 1;
     }
 
-    // فك شفرة رقم القسم
+    // تحديد القسم
     const secMatch = rawText.match(/0([1-5])\s*طﺠﻌﺎﻄ/);
     if (secMatch) {
       currentSectionNum = parseInt(secMatch[1]);
