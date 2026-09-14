@@ -19,8 +19,8 @@
       <div class="brand">
         <div class="icon">👥</div>
         <div>
-          <h1>إدارة التلاميذ</h1>
-          <div class="meta">إضافة الأقسام والتلاميذ يدوياً حسب هيكل المؤسسة</div>
+          <h1>إدارة التلاميذ والأقسام</h1>
+          <div class="meta">إضافة الأقسام يدويًا والتلاميذ</div>
         </div>
       </div>
       <div class="user-chip">
@@ -32,60 +32,54 @@
     <!-- Page Content -->
     <div class="page" style="padding: 20px;">
 
-      <!-- شريط إنشاء الأقسام حسب التوزيع الحقيقي -->
+      <!-- شريط إضافة الأقسام التفاعلي يدوياً -->
       <div class="auth-card" style="max-width:none; padding:16px 20px; margin-bottom:20px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
         <div>
-          <h3 style="margin:0 0 4px 0; font-size:15px; color:#fff;">🏢 إنشاء أقسام المؤسسة (13 قسم)</h3>
-          <p class="sub" style="margin:0; font-size:12px; color:#aaa;">سيتم إنشاء: 5 أقسام أولى، 3 أقسام ثانية، 3 أقسام ثالثة، و قسمين رابعة.</p>
+          <h3 style="margin:0 0 4px 0; font-size:15px; color:#fff;">🏫 إضافة قسم جديد حسب المستوى</h3>
+          <p class="sub" style="margin:0; font-size:12px; color:#aaa;">اختر المستوى واضغط على "إضافة قسم" وسيتم ترقيمه تلقائياً (مثلاً: 1م1، 1م2...)</p>
         </div>
-        <button class="btn-primary" id="createClassesBtn" style="width:auto; padding:8px 18px; font-size:13px; background:#3498db; border:none; border-radius:6px; color:#fff; cursor:pointer;">
-          ⚡ إنشاء الـ 13 قسم الخاصة بالمؤسسة
-        </button>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <select id="levelSelect" style="padding:8px 14px; background:#222; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:6px; font-size:13px;">
+            <option value="1">السنة الأولى متوسط</option>
+            <option value="2">السنة الثانية متوسط</option>
+            <option value="3">السنة الثالثة متوسط</option>
+            <option value="4">السنة الرابعة متوسط</option>
+          </select>
+          <button id="addSectionBtn" style="padding:8px 18px; font-size:13px; background:#3498db; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">
+            ➕ إضافة قسم
+          </button>
+        </div>
       </div>
 
       <div style="display:grid; grid-template-columns: 320px 1fr; gap:20px;">
 
-        <!-- نموذج الإضافة والتعديل -->
-        <div style="display:flex; flex-direction:column; gap:20px;">
+        <!-- نموذج إضافة تلميذ يدوي -->
+        <div class="auth-card" style="max-width:none; padding:20px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; height:fit-content;">
+          <h2 style="font-size:15px; margin-bottom:14px; color:#27ae60;" id="formTitle">👤 إضافة تلميذ جديد</h2>
           
-          <!-- إضافة قسم جديد يدوياً (اختياري) -->
-          <div class="auth-card" style="max-width:none; padding:16px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px;">
-            <h3 style="font-size:14px; margin:0 0 10px 0; color:#fff;">➕ إضافة قسم مخصص</h3>
-            <div style="display:flex; gap:8px;">
-              <input type="text" id="newClassNameInput" placeholder="مثال: 1م6" style="flex:1; padding:8px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; font-size:13px;">
-              <button id="addClassBtn" style="padding:8px 14px; background:#f39c12; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px;">إضافة</button>
-            </div>
-          </div>
-
-          <!-- نموذج إضافة تلميذ يدوي -->
-          <div class="auth-card" style="max-width:none; padding:20px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px;">
-            <h2 style="font-size:15px; margin-bottom:14px; color:#27ae60;" id="formTitle">👤 إضافة تلميذ جديد</h2>
+          <form id="studentForm">
+            <input type="hidden" id="studentId">
             
-            <form id="studentForm">
-              <input type="hidden" id="studentId">
-              
-              <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">الاسم واللقب *</label>
-              <input type="text" id="fullNameInput" placeholder="مثال: علي بلقاسم" required style="width:100%; padding:9px; margin-bottom:12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
+            <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">الاسم واللقب *</label>
+            <input type="text" id="fullNameInput" placeholder="مثال: علي بلقاسم" required style="width:100%; padding:9px; margin-bottom:12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
 
-              <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">اختر القسم *</label>
-              <select id="classSelect" required style="width:100%; padding:9px; margin-bottom:12px; background:#222; border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
-                <option value="">-- اختر القسم --</option>
-              </select>
+            <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">اختر القسم *</label>
+            <select id="classSelect" required style="width:100%; padding:9px; margin-bottom:12px; background:#222; border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
+              <option value="">-- اختر القسم --</option>
+            </select>
 
-              <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">رقم التعريف الوطني (اختياري)</label>
-              <input type="text" id="nationalIdInput" placeholder="رقم التعريف..." style="width:100%; padding:9px; margin-bottom:12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
+            <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">رقم التعريف الوطني (اختياري)</label>
+            <input type="text" id="nationalIdInput" placeholder="رقم التعريف..." style="width:100%; padding:9px; margin-bottom:12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
 
-              <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">الجنس</label>
-              <select id="genderSelect" style="width:100%; padding:9px; margin-bottom:18px; background:#222; border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
-                <option value="ذكر">ذكر</option>
-                <option value="أنثى">أنثى</option>
-              </select>
+            <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">الجنس</label>
+            <select id="genderSelect" style="width:100%; padding:9px; margin-bottom:18px; background:#222; border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
+              <option value="ذكر">ذكر</option>
+              <option value="أنثى">أنثى</option>
+            </select>
 
-              <button type="submit" class="btn-primary" id="saveStudentBtn" style="width:100%; padding:10px; background:#27ae60; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">حفظ التلميذ</button>
-              <button type="button" id="cancelEditBtn" style="width:100%; margin-top:8px; padding:8px; display:none; background:#7f8c8d; border:none; border-radius:6px; color:#fff; cursor:pointer;">إلغاء التعديل</button>
-            </form>
-          </div>
-
+            <button type="submit" class="btn-primary" id="saveStudentBtn" style="width:100%; padding:10px; background:#27ae60; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">حفظ التلميذ</button>
+            <button type="button" id="cancelEditBtn" style="width:100%; margin-top:8px; padding:8px; display:none; background:#7f8c8d; border:none; border-radius:6px; color:#fff; cursor:pointer;">إلغاء التعديل</button>
+          </form>
         </div>
 
         <!-- جدول القائمة والفلترة -->
@@ -101,7 +95,7 @@
             </div>
           </div>
 
-          <!-- حاوية الجدول -->
+          <!-- جدول التلاميذ -->
           <div id="tableContainer">
             <table style="width:100%; border-collapse:collapse; text-align:right; font-size:13px;">
               <thead>
@@ -147,7 +141,7 @@ async function init() {
 }
 init();
 
-// 1. تحميل الأقسام
+// 1. تحميل الأقسام وتصنيفها ترتيباً منطقياً
 async function loadClasses() {
   const { data, error } = await db.from("classes").select("*").order("name");
   if (error) {
@@ -168,52 +162,38 @@ async function loadClasses() {
   });
 }
 
-// 2. إنشاء الـ 13 قسم الخاصة بمؤسستك بالتحديد
-document.getElementById("createClassesBtn").addEventListener("click", async () => {
-  const targetClasses = [
-    // 5 أقسام للسنة الأولى
-    "1م1", "1م2", "1م3", "1م4", "1م5",
-    // 3 أقسام للسنة الثانية
-    "2م1", "2م2", "2م3",
-    // 3 أقسام للسنة الثالثة
-    "3م1", "3م2", "3م3",
-    // قسمين للسنة الرابعة
-    "4م1", "4م2"
-  ];
+// 2. إضافة قسم يدوياً بناءً على المستوى المختار
+document.getElementById("addSectionBtn").addEventListener("click", async () => {
+  const level = document.getElementById("levelSelect").value; // 1, 2, 3, or 4
+  const prefix = `${level}م`; // 1م, 2م, ...
 
-  const existingNames = allClasses.map(c => c.name);
-  const toInsert = targetClasses.filter(name => !existingNames.includes(name)).map(name => ({ name }));
+  // البحث عن الأقسام الحالية لهذا المستوى
+  const existingForLevel = allClasses
+    .map(c => c.name)
+    .filter(name => name.startsWith(prefix));
 
-  if (toInsert.length === 0) {
-    alert("جميع الأقسام الـ 13 للمؤسسة موجودة مسبقاً!");
-    return;
-  }
+  // إيجاد أعلى رقم قسم مضاف
+  let maxNumber = 0;
+  existingForLevel.forEach(name => {
+    const num = parseInt(name.replace(prefix, ''));
+    if (!isNaN(num) && num > maxNumber) {
+      maxNumber = num;
+    }
+  });
 
-  const { error } = await db.from("classes").insert(toInsert);
+  const nextNumber = maxNumber + 1;
+  const newClassName = `${prefix}${nextNumber}`;
+
+  const btn = document.getElementById("addSectionBtn");
+  btn.disabled = true;
+
+  const { error } = await db.from("classes").insert([{ name: newClassName }]);
+  btn.disabled = false;
+
   if (error) {
-    alert("حدث خطأ أثناء إضافة الأقسام: " + error.message);
+    alert("حدث خطأ أثناء إضافة القسم: " + error.message);
   } else {
-    alert(`تم إنشاء الأقسام بنجاح! التوزيع الآن:\n- 5 أولى (1م1 إلى 1م5)\n- 3 ثانية (2م1 إلى 2م3)\n- 3 ثالثة (3م1 إلى 3م3)\n- 2 رابعة (4م1 إلى 4م2)`);
-    await loadClasses();
-    await loadStudents();
-  }
-});
-
-// إضافة قسم مخصص يدوي
-document.getElementById("addClassBtn").addEventListener("click", async () => {
-  const className = document.getElementById("newClassNameInput").value.trim();
-  if (!className) return;
-
-  if (allClasses.some(c => c.name === className)) {
-    alert("هذا القسم موجود بالفعل!");
-    return;
-  }
-
-  const { error } = await db.from("classes").insert([{ name: className }]);
-  if (error) {
-    alert("حدث خطأ: " + error.message);
-  } else {
-    document.getElementById("newClassNameInput").value = "";
+    alert(`تمت إضافة القسم (${newClassName}) بنجاح!`);
     await loadClasses();
   }
 });
@@ -249,7 +229,7 @@ function renderStudentsTable() {
         <td colspan="6" style="text-align:center; padding:40px;">
           <div style="font-size:35px; margin-bottom:10px;">🏫</div>
           <div style="color:#fff; font-size:14px; margin-bottom:8px;">لا توجد أقسام مسجلة.</div>
-          <div style="color:#aaa; font-size:12px;">اضغط على زر "إنشاء الـ 13 قسم الخاصة بالمؤسسة" في الأعلى لتجهيز القوائم.</div>
+          <div style="color:#aaa; font-size:12px;">اختر المستوى في الأعلى ثم اضغط "➕ إضافة قسم".</div>
         </td>
       </tr>`;
     return;
