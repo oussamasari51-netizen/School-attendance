@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>إدارة التلاميذ — برنامج الناظر</title>
+<title>إدارة الأقسام والتلاميذ — برنامج الناظر</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -19,8 +19,8 @@
       <div class="brand">
         <div class="icon">👥</div>
         <div>
-          <h1>إدارة التلاميذ والأقسام</h1>
-          <div class="meta">إضافة الأقسام يدويًا والتلاميذ</div>
+          <h1>إدارة الأقسام والتلاميذ</h1>
+          <div class="meta">إنشاء الأقسام وإدارتها وحذفها وإضافة التلاميذ</div>
         </div>
       </div>
       <div class="user-chip">
@@ -32,30 +32,42 @@
     <!-- Page Content -->
     <div class="page" style="padding: 20px;">
 
-      <!-- شريط إضافة الأقسام التفاعلي يدوياً -->
-      <div class="auth-card" style="max-width:none; padding:16px 20px; margin-bottom:20px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-        <div>
-          <h3 style="margin:0 0 4px 0; font-size:15px; color:#fff;">🏫 إضافة قسم جديد حسب المستوى</h3>
-          <p class="sub" style="margin:0; font-size:12px; color:#aaa;">اختر المستوى واضغط على "إضافة قسم" وسيتم ترقيمه تلقائياً (مثلاً: 1م1، 1م2...)</p>
+      <!-- 1. لوحة إدارة الأقسام (إضافة وحذف) -->
+      <div class="auth-card" style="max-width:none; padding:18px 20px; margin-bottom:20px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+          <div>
+            <h3 style="margin:0 0 4px 0; font-size:16px; color:#fff;">🏫 إدارة أقسام المؤسسة</h3>
+            <p class="sub" style="margin:0; font-size:12px; color:#aaa;">اختر السنة الدراسية واضغط على إضافة قسم، أو قم بحذف الأقسام الزائدة.</p>
+          </div>
+          
+          <div style="display:flex; gap:10px; align-items:center;">
+            <select id="levelSelect" style="padding:8px 12px; background:#222; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:6px; font-size:13px;">
+              <option value="1">السنة الأولى متوسط (1م)</option>
+              <option value="2">السنة الثانية متوسط (2م)</option>
+              <option value="3">السنة الثالثة متوسط (3م)</option>
+              <option value="4">السنة الرابعة متوسط (4م)</option>
+            </select>
+            <button id="addSectionBtn" style="padding:8px 16px; font-size:13px; background:#27ae60; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">
+              ➕ إضافة قسم
+            </button>
+          </div>
         </div>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <select id="levelSelect" style="padding:8px 14px; background:#222; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:6px; font-size:13px;">
-            <option value="1">السنة الأولى متوسط</option>
-            <option value="2">السنة الثانية متوسط</option>
-            <option value="3">السنة الثالثة متوسط</option>
-            <option value="4">السنة الرابعة متوسط</option>
-          </select>
-          <button id="addSectionBtn" style="padding:8px 18px; font-size:13px; background:#3498db; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">
-            ➕ إضافة قسم
-          </button>
+
+        <!-- عرض الأقسام الحالية المضافة مع زر الحذف -->
+        <div style="border-top:1px solid rgba(255,255,255,0.1); padding-top:12px; margin-top:10px;">
+          <div style="font-size:12px; color:#ccc; margin-bottom:8px;">الأقسام المضافة حالياً:</div>
+          <div id="classListBadges" style="display:flex; flex-wrap:wrap; gap:8px;">
+            <span style="color:#aaa; font-size:12px;">جاري تحميل الأقسام...</span>
+          </div>
         </div>
       </div>
 
+      <!-- 2. الجزء السفلي: إضافة تلميذ + جدول التلاميذ -->
       <div style="display:grid; grid-template-columns: 320px 1fr; gap:20px;">
 
-        <!-- نموذج إضافة تلميذ يدوي -->
+        <!-- نموذج إضافة/تعديل تلميذ -->
         <div class="auth-card" style="max-width:none; padding:20px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; height:fit-content;">
-          <h2 style="font-size:15px; margin-bottom:14px; color:#27ae60;" id="formTitle">👤 إضافة تلميذ جديد</h2>
+          <h2 style="font-size:15px; margin-bottom:14px; color:#3498db;" id="formTitle">👤 إضافة تلميذ جديد</h2>
           
           <form id="studentForm">
             <input type="hidden" id="studentId">
@@ -77,7 +89,7 @@
               <option value="أنثى">أنثى</option>
             </select>
 
-            <button type="submit" class="btn-primary" id="saveStudentBtn" style="width:100%; padding:10px; background:#27ae60; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">حفظ التلميذ</button>
+            <button type="submit" class="btn-primary" id="saveStudentBtn" style="width:100%; padding:10px; background:#3498db; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">حفظ التلميذ</button>
             <button type="button" id="cancelEditBtn" style="width:100%; margin-top:8px; padding:8px; display:none; background:#7f8c8d; border:none; border-radius:6px; color:#fff; cursor:pointer;">إلغاء التعديل</button>
           </form>
         </div>
@@ -141,7 +153,7 @@ async function init() {
 }
 init();
 
-// 1. تحميل الأقسام وتصنيفها ترتيباً منطقياً
+// 1. تحميل الأقسام وعرضها كبطاقات صغيرة مع خيار الحذف
 async function loadClasses() {
   const { data, error } = await db.from("classes").select("*").order("name");
   if (error) {
@@ -150,6 +162,7 @@ async function loadClasses() {
   }
   allClasses = data || [];
 
+  // تحديث القوائم المنسدلة
   const classSelect = document.getElementById("classSelect");
   const filterClass = document.getElementById("filterClass");
 
@@ -160,45 +173,71 @@ async function loadClasses() {
     classSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
     filterClass.innerHTML += `<option value="${c.id}">${c.name}</option>`;
   });
+
+  // عرض بطاقات الأقسام المضافة مع زر الحذف 🗑️
+  const badgesContainer = document.getElementById("classListBadges");
+  if (allClasses.length === 0) {
+    badgesContainer.innerHTML = '<span style="color:#aaa; font-size:12px;">لا توجد أقسام مسجلة حالياً. اختر المستوى في الأعلى واضغط "إضافة قسم".</span>';
+    return;
+  }
+
+  let html = "";
+  allClasses.forEach(c => {
+    html += `
+      <div style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); padding:4px 10px; border-radius:20px; font-size:12px; color:#fff; display:flex; align-items:center; gap:8px;">
+        <span>${c.name}</span>
+        <button onclick="deleteClass('${c.id}', '${c.name}')" title="حذف القسم" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:13px; font-weight:bold; padding:0; line-height:1;">✕</button>
+      </div>
+    `;
+  });
+  badgesContainer.innerHTML = html;
 }
 
-// 2. إضافة قسم يدوياً بناءً على المستوى المختار
+// 2. إضافة قسم بناءً على السنة المختارة (تلقائياً بالتسلسل)
 document.getElementById("addSectionBtn").addEventListener("click", async () => {
-  const level = document.getElementById("levelSelect").value; // 1, 2, 3, or 4
-  const prefix = `${level}م`; // 1م, 2م, ...
+  const level = document.getElementById("levelSelect").value;
+  const prefix = `${level}م`;
 
-  // البحث عن الأقسام الحالية لهذا المستوى
-  const existingForLevel = allClasses
-    .map(c => c.name)
-    .filter(name => name.startsWith(prefix));
+  // إيجاد الأقسام الحالية من نفس هذا المستوى
+  const existingNames = allClasses.map(c => c.name).filter(n => n.startsWith(prefix));
 
-  // إيجاد أعلى رقم قسم مضاف
-  let maxNumber = 0;
-  existingForLevel.forEach(name => {
+  let maxNum = 0;
+  existingNames.forEach(name => {
     const num = parseInt(name.replace(prefix, ''));
-    if (!isNaN(num) && num > maxNumber) {
-      maxNumber = num;
+    if (!isNaN(num) && num > maxNum) {
+      maxNum = num;
     }
   });
 
-  const nextNumber = maxNumber + 1;
-  const newClassName = `${prefix}${nextNumber}`;
+  const nextClassName = `${prefix}${maxNum + 1}`;
 
   const btn = document.getElementById("addSectionBtn");
   btn.disabled = true;
 
-  const { error } = await db.from("classes").insert([{ name: newClassName }]);
+  const { error } = await db.from("classes").insert([{ name: nextClassName }]);
   btn.disabled = false;
 
   if (error) {
     alert("حدث خطأ أثناء إضافة القسم: " + error.message);
   } else {
-    alert(`تمت إضافة القسم (${newClassName}) بنجاح!`);
     await loadClasses();
   }
 });
 
-// 3. تحميل التلاميذ
+// 3. حذف قسم
+async function deleteClass(classId, className) {
+  if (!confirm(`هل أنت متأكد من حذف القسم (${className})؟`)) return;
+
+  const { error } = await db.from("classes").delete().eq("id", classId);
+  if (error) {
+    alert("حدث خطأ أثناء الحذف: " + error.message);
+  } else {
+    await loadClasses();
+    await loadStudents();
+  }
+}
+
+// 4. تحميل التلاميذ
 async function loadStudents() {
   const { data, error } = await db.from("students").select("*, classes(name)").order("full_name");
   if (error) {
@@ -209,7 +248,7 @@ async function loadStudents() {
   renderStudentsTable();
 }
 
-// 4. عرض القائمة
+// 5. عرض جدول التلاميذ
 function renderStudentsTable() {
   const classId = document.getElementById("filterClass").value;
   const search = document.getElementById("searchInput").value.trim().toLowerCase();
@@ -226,10 +265,8 @@ function renderStudentsTable() {
   if (allClasses.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" style="text-align:center; padding:40px;">
-          <div style="font-size:35px; margin-bottom:10px;">🏫</div>
-          <div style="color:#fff; font-size:14px; margin-bottom:8px;">لا توجد أقسام مسجلة.</div>
-          <div style="color:#aaa; font-size:12px;">اختر المستوى في الأعلى ثم اضغط "➕ إضافة قسم".</div>
+        <td colspan="6" style="text-align:center; padding:30px; color:#aaa;">
+          لا توجد أقسام مسجلة. قم بإضافة الأقسام أولاً من أعلى الصفحة.
         </td>
       </tr>`;
     return;
@@ -264,7 +301,7 @@ function renderStudentsTable() {
 document.getElementById("filterClass").addEventListener("change", renderStudentsTable);
 document.getElementById("searchInput").addEventListener("input", renderStudentsTable);
 
-// 5. حفظ وإضافة تلميذ
+// 6. إضافة وتعديل تلميذ
 document.getElementById("studentForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const studentId = document.getElementById("studentId").value;
