@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- مكتبة قراءة ملفات الـ PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 </head>
 <body>
 
@@ -33,10 +35,10 @@
   <div class="auth-card" style="max-width:none; padding:28px;">
     <h1 style="font-size:17px; margin-bottom:6px;">اختر الملف</h1>
     <p class="sub" style="margin-bottom:20px;">
-      يدعم ملفات المنصة الرقمية (Eleve.xls) وملفات Excel العادية (.xlsx). سيتم إنشاء الأقسام تلقائياً حسب عمودي "السنة" و"القسم" في الملف.
+      يدعم ملفات المنصة الرقمية (Eleve.xls) وملفات Excel العادية (.xlsx) وملفات القوائم المطبوعة (.pdf). سيتم إنشاء الأقسام تلقائياً حسب المستوى والقسم.
     </p>
 
-    <input type="file" id="fileInput" accept=".xls,.xlsx,.csv" style="margin-bottom:16px;">
+    <input type="file" id="fileInput" accept=".xls,.xlsx,.csv,.pdf" style="margin-bottom:16px;">
 
     <div id="statusBox" class="loading-text" style="display:none;"></div>
 
@@ -84,13 +86,23 @@ document.getElementById("fileInput").addEventListener("change", async (e) => {
   document.getElementById("previewBox").style.display = "none";
   document.getElementById("resultBox").style.display = "none";
 
-  const text = await file.text();
-
   let rows = [];
-  if (text.includes("<table") || text.includes("<TABLE")) {
-    rows = parseHtmlTable(text);
-  } else {
-    rows = await parseWithSheetJS(file);
+
+  try {
+    if (file.name.toLowerCase().endsWith(".pdf")) {
+      rows = await parsePdfFile(file);
+    } else {
+      const text = await file.text();
+      if (text.includes("<table") || text.includes("<TABLE")) {
+        rows = parseHtmlTable(text);
+      } else {
+        rows = await parseWithSheetJS(file);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    statusBox.textContent = "حدث خطأ أثناء قراءة الملف: " + err.message;
+    return;
   }
 
   if (!rows || rows.length === 0) {
@@ -100,6 +112,13 @@ document.getElementById("fileInput").addEventListener("change", async (e) => {
 
   parsedStudents = buildStudents(rows);
   statusBox.style.display = "none";
+
+  if (parsedStudents.length === 0) {
+    statusBox.style.display = "block";
+    statusBox.textContent = "لم يتم العثور على تلاميذ معتمدين داخل الملف.";
+    return;
+  }
+
   renderPreview();
 });
 
@@ -139,17 +158,86 @@ function parseWithSheetJS(file) {
   });
 }
 
+// دالة تحليل ملف الـ PDF الخاص بالرقمنة بشكل مباشر
+async function parsePdfFile(file) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const extractedRows = [];
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    
+    // تجميع الكلمات وحسب المظهر والمواقع
+    const lines = [];
+    let currentY = null;
+    let currentLine = [];
+
+    const items = textContent.items.sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4]);
+
+    items.forEach(item => {
+      const y = Math.round(item.transform[5]);
+      if (currentY === null || Math.abs(y - currentY) > 4) {
+        if (currentLine.length > 0) lines.push(currentLine.join(" "));
+        currentLine = [item.str];
+        currentY = y;
+      } else {
+        currentLine.push(item.str);
+      }
+    });
+    if (currentLine.length > 0) lines.push(currentLine.join(" "));
+
+    let pageLevel = "";
+    let pageSection = "";
+
+    lines.forEach(line => {
+      const levelMatch = line.match(/(أولى|ثانية|ثالثة|رابعة)\s*متوسط\s*(\d+)?/);
+      if (levelMatch) {
+        pageLevel = levelMatch[1];
+        if (levelMatch[2]) pageSection = levelMatch[2];
+      }
+
+      // البحث عن السطور التي تحتفظ بأرقام التعريف الوطنية
+      const ninMatch = line.match(/(\d{15,16})/);
+      if (ninMatch) {
+        const nationalId = ninMatch[1];
+        // تنظيف الاسم واللقب وتاريخ الميلاد
+        const dobMatch = line.match(/(\d{4}-\d{2}-\d{2})/);
+        const genderMatch = line.includes("أنثى") ? "أنثى" : (line.includes("ذكر") ? "ذكر" : "");
+
+        extractedRows.push({
+          "رقم التعريف": nationalId,
+          "الاسم واللقب": line,
+          "السنة": pageLevel || "رابعة",
+          "القسم": pageSection || "1",
+          "الجنس": genderMatch,
+          "تاريخ الازدياد": dobMatch ? dobMatch[1] : ""
+        });
+      }
+    });
+  }
+
+  return extractedRows;
+}
+
 function buildStudents(rows) {
   const list = [];
   rows.forEach(r => {
-    const lastName = r["اللقب"] || "";
-    const firstName = r["الاسم"] || "";
-    const fullName = norm(`${lastName} ${firstName}`);
+    let lastName = r["اللقب"] || "";
+    let firstName = r["الاسم"] || "";
+    let fullName = norm(`${lastName} ${firstName}`);
+
+    // في حال الاستيراد من PDF
+    if (!fullName && r["الاسم واللقب"]) {
+      fullName = norm(r["الاسم واللقب"].replace(/\d+/g, '').replace(/\d{4}-\d{2}-\d{2}/g, '').replace(/(أنثى|ذكر)/g, ''));
+    }
+
     if (!fullName) return;
 
     const levelWord = r["السنة"] || "";
-    const levelNum = LEVEL_MAP[levelWord];
-    const section = (r["القسم"] || "").toString().trim();
+    const levelNum = LEVEL_MAP[levelWord] || LEVEL_MAP["رابعة"];
+    const section = (r["القسم"] || "1").toString().trim();
     if (!levelNum || !section) return;
 
     const className = `${levelNum}م${section}`;
