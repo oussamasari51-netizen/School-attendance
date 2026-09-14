@@ -121,14 +121,35 @@ async function init() {
   if (!profile) return;
   document.getElementById("adminName").textContent = profile.full_name;
 
+  await loadClasses();
+}
+
+async function loadClasses() {
+  const grid = document.getElementById("classGrid");
+  grid.innerHTML = `<div class="loading-text">جاري التحميل...</div>`;
+  document.getElementById("studentSection").style.display = "none";
+
   const { data: classes } = await db.from("classes").select("id, name").order("name");
   allClasses = classes || [];
-  const grid = document.getElementById("classGrid");
+
+  if (allClasses.length === 0) {
+    grid.innerHTML = `<div class="empty-state"><div class="icon">🏫</div>لا توجد أقسام مسجلة. قم باستيراد القوائم أولاً.</div>`;
+    return;
+  }
+
+  // جلب تعداد التلاميذ لكل قسم
+  const { data: studentCounts } = await db.from("students").select("class_id");
+  const countMap = {};
+  (studentCounts || []).forEach(s => {
+    countMap[s.class_id] = (countMap[s.class_id] || 0) + 1;
+  });
+
   grid.innerHTML = "";
   allClasses.forEach(c => {
     const card = document.createElement("div");
     card.className = "class-card";
-    card.innerHTML = `<div class="cname">${c.name}</div><div class="stat zero"><span class="txt">اضغط لعرض التلاميذ</span></div>`;
+    const count = countMap[c.id] || 0;
+    card.innerHTML = `<div class="cname">${c.name}</div><div class="stat ${count > 0 ? '' : 'zero'}"><span class="txt">${count > 0 ? count + ' تلميذ' : 'لا يوجد تلاميذ'}</span></div>`;
     card.onclick = () => selectClass(c);
     grid.appendChild(card);
   });
@@ -155,7 +176,7 @@ async function renderStudents() {
   const { data: students } = await query;
 
   if (!students || students.length === 0) {
-    list.innerHTML = `<div class="empty-state"><div class="icon">👤</div>لا يوجد تلاميذ لعرضهم.</div>`;
+    list.innerHTML = `<div class="empty-state"><div class="icon">👤</div>لا يوجد تلاميذ لعرضهم في هذا القسم.</div>`;
     return;
   }
 
@@ -195,11 +216,11 @@ async function toggleActive(student) {
     document.getElementById("withdrawModal").classList.add("open");
     return;
   }
-  // إعادة تفعيل مباشرة
   const { error } = await db.from("students").update({ active: true, withdrawal_date: null, withdrawal_reason: null }).eq("id", student.id);
   if (error) { showToast("حدث خطأ"); return; }
   showToast("تمت إعادة التفعيل");
-  renderStudents();
+  await renderStudents();
+  await loadClasses();
 }
 
 function closeWithdrawModal() { document.getElementById("withdrawModal").classList.remove("open"); }
@@ -216,7 +237,8 @@ document.getElementById("confirmWithdrawBtn").addEventListener("click", async ()
   closeWithdrawModal();
   if (error) { showToast("حدث خطأ"); return; }
   showToast("تم حذف التلميذ من القسم");
-  renderStudents();
+  await renderStudents();
+  await loadClasses();
 });
 
 // ===== إضافة تلميذ =====
@@ -243,7 +265,8 @@ document.getElementById("confirmAddBtn").addEventListener("click", async () => {
   if (error) { showToast("حدث خطأ أثناء الإضافة"); return; }
   showToast("تمت إضافة التلميذ بنجاح ✓");
   closeAddModal();
-  renderStudents();
+  await renderStudents();
+  await loadClasses();
 });
 
 // ===== تغيير القسم =====
@@ -270,7 +293,8 @@ async function confirmMove(newClass) {
   closeMoveModal();
   if (error) { showToast("حدث خطأ أثناء النقل"); return; }
   showToast(`تم نقل التلميذ إلى ${newClass.name}`);
-  renderStudents();
+  await renderStudents();
+  await loadClasses();
 }
 
 init();
