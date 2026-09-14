@@ -6,6 +6,100 @@
 <title>إدارة الأقسام والتلاميذ — برنامج الناظر</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  /* تحسينات التصميم والاستجابة للهواتف */
+  .students-layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 20px;
+  }
+
+  .card-style {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .form-control {
+    width: 100%;
+    padding: 9px 12px;
+    margin-bottom: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 13px;
+  }
+
+  .form-control:focus {
+    outline: none;
+    border-color: #3498db;
+  }
+
+  select.form-control {
+    background: #222;
+  }
+
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .class-badge {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .class-badge button {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 2px 4px;
+    line-height: 1;
+    border-radius: 50%;
+  }
+
+  .class-badge button:hover {
+    background: rgba(231, 76, 60, 0.2);
+  }
+
+  /* استجابة الشاشات الصغيرة (الهواتف) */
+  @media (max-width: 900px) {
+    .students-layout {
+      grid-template-columns: 1fr;
+    }
+    
+    .topbar-actions {
+      flex-direction: column;
+      align-items: stretch !important;
+      width: 100%;
+    }
+
+    .filter-group {
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .filter-group select, 
+    .filter-group input {
+      width: 100% !important;
+    }
+  }
+</style>
 </head>
 <body>
 
@@ -33,21 +127,21 @@
     <div class="page" style="padding: 20px;">
 
       <!-- 1. لوحة إدارة الأقسام (إضافة وحذف) -->
-      <div class="auth-card" style="max-width:none; padding:18px 20px; margin-bottom:20px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+      <div class="card-style" style="margin-bottom: 20px;">
+        <div class="topbar-actions" style="display:flex; justify-space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
           <div>
             <h3 style="margin:0 0 4px 0; font-size:16px; color:#fff;">🏫 إدارة أقسام المؤسسة</h3>
             <p class="sub" style="margin:0; font-size:12px; color:#aaa;">اختر السنة الدراسية واضغط على إضافة قسم، أو قم بحذف الأقسام الزائدة.</p>
           </div>
           
-          <div style="display:flex; gap:10px; align-items:center;">
-            <select id="levelSelect" style="padding:8px 12px; background:#222; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:6px; font-size:13px;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <select id="levelSelect" class="form-control" style="margin-bottom:0; width:auto;">
               <option value="1">السنة الأولى متوسط (1م)</option>
               <option value="2">السنة الثانية متوسط (2م)</option>
               <option value="3">السنة الثالثة متوسط (3م)</option>
               <option value="4">السنة الرابعة متوسط (4م)</option>
             </select>
-            <button id="addSectionBtn" style="padding:8px 16px; font-size:13px; background:#27ae60; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">
+            <button id="addSectionBtn" style="padding:9px 16px; font-size:13px; background:#27ae60; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">
               ➕ إضافة قسم
             </button>
           </div>
@@ -55,7 +149,7 @@
 
         <!-- عرض الأقسام الحالية المضافة مع زر الحذف -->
         <div style="border-top:1px solid rgba(255,255,255,0.1); padding-top:12px; margin-top:10px;">
-          <div style="font-size:12px; color:#ccc; margin-bottom:8px;">الأقسام المضافة حالياً:</div>
+          <div style="font-size:12px; color:#ccc; margin-bottom:8px;">الأقسام المضافة حالياً (<span id="classesCount">0</span>):</div>
           <div id="classListBadges" style="display:flex; flex-wrap:wrap; gap:8px;">
             <span style="color:#aaa; font-size:12px;">جاري تحميل الأقسام...</span>
           </div>
@@ -63,28 +157,32 @@
       </div>
 
       <!-- 2. الجزء السفلي: إضافة تلميذ + جدول التلاميذ -->
-      <div style="display:grid; grid-template-columns: 320px 1fr; gap:20px;">
+      <div class="students-layout">
 
         <!-- نموذج إضافة/تعديل تلميذ -->
-        <div class="auth-card" style="max-width:none; padding:20px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; height:fit-content;">
-          <h2 style="font-size:15px; margin-bottom:14px; color:#3498db;" id="formTitle">👤 إضافة تلميذ جديد</h2>
+        <div class="card-style" style="height:fit-content;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h2 style="font-size:15px; margin:0; color:#3498db;" id="formTitle">👤 إضافة تلميذ جديد</h2>
+            <button type="button" id="importBtn" onclick="triggerImport()" style="background:rgba(52, 152, 219, 0.2); border:1px solid #3498db; color:#3498db; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;">📥 استيراد</button>
+            <input type="file" id="excelFileInput" accept=".csv, .xlsx" style="display:none;" onchange="handleFileUpload(event)">
+          </div>
           
           <form id="studentForm">
             <input type="hidden" id="studentId">
             
             <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">الاسم واللقب *</label>
-            <input type="text" id="fullNameInput" placeholder="مثال: علي بلقاسم" required style="width:100%; padding:9px; margin-bottom:12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
+            <input type="text" id="fullNameInput" class="form-control" placeholder="مثال: علي بلقاسم" required>
 
             <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">اختر القسم *</label>
-            <select id="classSelect" required style="width:100%; padding:9px; margin-bottom:12px; background:#222; border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
+            <select id="classSelect" class="form-control" required>
               <option value="">-- اختر القسم --</option>
             </select>
 
             <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">رقم التعريف الوطني (اختياري)</label>
-            <input type="text" id="nationalIdInput" placeholder="رقم التعريف..." style="width:100%; padding:9px; margin-bottom:12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
+            <input type="text" id="nationalIdInput" class="form-control" placeholder="رقم التعريف...">
 
             <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">الجنس</label>
-            <select id="genderSelect" style="width:100%; padding:9px; margin-bottom:18px; background:#222; border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px;">
+            <select id="genderSelect" class="form-control" style="margin-bottom:18px;">
               <option value="ذكر">ذكر</option>
               <option value="أنثى">أنثى</option>
             </select>
@@ -95,21 +193,21 @@
         </div>
 
         <!-- جدول القائمة والفلترة -->
-        <div class="auth-card" style="max-width:none; padding:20px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px;">
+        <div class="card-style">
           
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
             <h2 style="font-size:15px; margin:0; color:#fff;">قوائم التلاميذ (<span id="totalCount" style="color:#3498db;">0</span>)</h2>
-            <div style="display:flex; gap:10px;">
-              <select id="filterClass" style="padding:6px 12px; background:#222; border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; font-size:13px;">
+            <div class="filter-group" style="display:flex; gap:10px;">
+              <select id="filterClass" class="form-control" style="margin-bottom:0; width:auto;">
                 <option value="">كل الأقسام</option>
               </select>
-              <input type="text" id="searchInput" placeholder="بحث باسم التلميذ..." style="padding:6px 12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; font-size:13px; width:170px;">
+              <input type="text" id="searchInput" class="form-control" placeholder="بحث باسم التلميذ..." style="margin-bottom:0; width:170px;">
             </div>
           </div>
 
-          <!-- جدول التلاميذ -->
-          <div id="tableContainer">
-            <table style="width:100%; border-collapse:collapse; text-align:right; font-size:13px;">
+          <!-- جدول التلاميذ التفاعلي -->
+          <div class="table-responsive">
+            <table style="width:100%; border-collapse:collapse; text-align:right; font-size:13px; min-width: 500px;">
               <thead>
                 <tr style="background:rgba(255,255,255,0.08); border-bottom:1px solid rgba(255,255,255,0.15); color:#ddd;">
                   <th style="padding:10px;">#</th>
@@ -153,7 +251,7 @@ async function init() {
 }
 init();
 
-// 1. تحميل الأقسام وعرضها كبطاقات صغيرة مع خيار الحذف
+// 1. تحميل الأقسام
 async function loadClasses() {
   const { data, error } = await db.from("classes").select("*").order("name");
   if (error) {
@@ -161,8 +259,8 @@ async function loadClasses() {
     return;
   }
   allClasses = data || [];
+  document.getElementById("classesCount").textContent = allClasses.length;
 
-  // تحديث القوائم المنسدلة
   const classSelect = document.getElementById("classSelect");
   const filterClass = document.getElementById("filterClass");
 
@@ -174,7 +272,6 @@ async function loadClasses() {
     filterClass.innerHTML += `<option value="${c.id}">${c.name}</option>`;
   });
 
-  // عرض بطاقات الأقسام المضافة مع زر الحذف 🗑️
   const badgesContainer = document.getElementById("classListBadges");
   if (allClasses.length === 0) {
     badgesContainer.innerHTML = '<span style="color:#aaa; font-size:12px;">لا توجد أقسام مسجلة حالياً. اختر المستوى في الأعلى واضغط "إضافة قسم".</span>';
@@ -184,21 +281,20 @@ async function loadClasses() {
   let html = "";
   allClasses.forEach(c => {
     html += `
-      <div style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); padding:4px 10px; border-radius:20px; font-size:12px; color:#fff; display:flex; align-items:center; gap:8px;">
+      <div class="class-badge">
         <span>${c.name}</span>
-        <button onclick="deleteClass('${c.id}', '${c.name}')" title="حذف القسم" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:13px; font-weight:bold; padding:0; line-height:1;">✕</button>
+        <button onclick="deleteClass('${c.id}', '${c.name}')" title="حذف القسم">✕</button>
       </div>
     `;
   });
   badgesContainer.innerHTML = html;
 }
 
-// 2. إضافة قسم بناءً على السنة المختارة (تلقائياً بالتسلسل)
+// 2. إضافة قسم
 document.getElementById("addSectionBtn").addEventListener("click", async () => {
   const level = document.getElementById("levelSelect").value;
   const prefix = `${level}م`;
 
-  // إيجاد الأقسام الحالية من نفس هذا المستوى
   const existingNames = allClasses.map(c => c.name).filter(n => n.startsWith(prefix));
 
   let maxNum = 0;
@@ -376,7 +472,19 @@ async function deleteStudent(id) {
     await loadStudents();
   }
 }
+
+// دالة مبسطة للربط بميزة الاستيراد مستقبلاً
+function triggerImport() {
+  document.getElementById("excelFileInput").click();
+}
+
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (file) {
+    alert(`تم اختيار الملف: ${file.name}. يمكن إضافة مكتبة (like PapaParse / SheetJS) لفرز وقراءة بيانات الملف وتخزينها تلقائياً.`);
+  }
+}
 </script>
-<div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
+<div class="app-footer" style="text-align:center; padding:15px; color:#aaa; font-size:12px;">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
 </body>
 </html>
