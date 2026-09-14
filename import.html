@@ -7,7 +7,6 @@
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<!-- مكتبة قراءة ملفات الـ PDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 </head>
 <body>
@@ -32,6 +31,17 @@
 
 <div class="page" style="max-width:760px;">
 
+  <!-- بطاقة خيار تنظيف السنة السابقة -->
+  <div class="auth-card" style="max-width:none; padding:20px; margin-bottom:20px; border-right: 4px solid var(--absent, #e74c3c);">
+    <h2 style="font-size:15px; margin-bottom:6px; color:var(--absent, #e74c3c);">⚠️ تجهيز النظام للسنة الدراسية الجديدة</h2>
+    <p class="sub" style="margin-bottom:12px;">
+      إذا كنت تريد رفع قائمة السنة الجديدة بدلاً من القوائم القديمة، يُفضّل مسح بيانات التلاميذ القدامى أولاً.
+    </p>
+    <button class="btn-primary" id="wipeBtn" style="background:#e74c3c; width:auto; padding:8px 16px; font-size:13px;">
+      🗑️ مسح جميع بيانات التلاميذ القدامى
+    </button>
+  </div>
+
   <div class="auth-card" style="max-width:none; padding:28px;">
     <h1 style="font-size:17px; margin-bottom:6px;">اختر الملف</h1>
     <p class="sub" style="margin-bottom:20px;">
@@ -48,7 +58,7 @@
       <button class="btn-primary" id="confirmBtn" style="margin-top:16px; width:100%;">تأكيد الاستيراد</button>
     </div>
 
-    <div id="resultBox" class="auth-error" style="display:none; background:var(--resolved-light); color:var(--resolved);"></div>
+    <div id="resultBox" class="auth-error" style="display:none;"></div>
   </div>
 
 </div>
@@ -61,7 +71,7 @@
 <script>renderSidebar("import");</script>
 <script>
 let profile = null;
-let parsedStudents = []; // {full_name, gender, birth_date, national_id, className}
+let parsedStudents = [];
 
 const LEVEL_MAP = { "أولى": 1, "ثانية": 2, "ثالثة": 3, "رابعة": 4 };
 
@@ -76,13 +86,34 @@ async function init() {
 }
 init();
 
+// زر مسح التلاميذ القدامى
+document.getElementById("wipeBtn").addEventListener("click", async () => {
+  if (!confirm("هل أنت تأكد من رغبتك في حذف جميع التلاميذ القدامى من قاعدة البيانات؟ لا يمكن التراجع عن هذه الخطوة.")) {
+    return;
+  }
+  const btn = document.getElementById("wipeBtn");
+  btn.disabled = true;
+  btn.textContent = "جاري المسح...";
+
+  try {
+    const { error } = await db.from("students").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (error) throw error;
+    showResult("تم مسح جميع بيانات التلاميذ القدامى بنجاح. يمكنك الآن رفع القائمة الجديدة.", true);
+  } catch (err) {
+    showResult("حدث خطأ أثناء المسح: " + err.message, false);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🗑️ مسح جميع بيانات التلاميذ القدامى";
+  }
+});
+
 document.getElementById("fileInput").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
   const statusBox = document.getElementById("statusBox");
   statusBox.style.display = "block";
-  statusBox.textContent = "جاري قراءة الملف...";
+  statusBox.textContent = "جاري قراءة الملف وتفكيك الأقسام...";
   document.getElementById("previewBox").style.display = "none";
   document.getElementById("resultBox").style.display = "none";
 
@@ -158,59 +189,65 @@ function parseWithSheetJS(file) {
   });
 }
 
-// دالة تحليل ملف الـ PDF الخاص بالرقمنة بشكل مباشر
+// دالة تحليل PDF الرقمنة المتاحة مع تمييز النصوص المعكوسة
 async function parsePdfFile(file) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const extractedRows = [];
 
+  let currentLevelNum = 4;
+  let currentSectionNum = 1;
+
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const textContent = await page.getTextContent();
-    
-    // تجميع الكلمات وحسب المظهر والمواقع
-    const lines = [];
-    let currentY = null;
-    let currentLine = [];
+    const rawText = textContent.items.map(item => item.str).join(" ");
 
-    const items = textContent.items.sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4]);
+    // فك التشفير الحرفي لعنوان القسم بالملاحظات المرجعية للرقمنة
+    if (rawText.includes("ﺳﺋ بﺋ") || rawText.includes("رابعة")) {
+      currentLevelNum = 4;
+    } else if (rawText.includes("ﺛلاﺛﺪﺋ") || rawText.includes("ثالثة")) {
+      currentLevelNum = 3;
+    } else if (rawText.includes("ﺋ اﻇﻐﺋ") || rawText.includes("ثانية")) {
+      currentLevelNum = 2;
+    } else if (rawText.includes("لىﺋ :أو") || rawText.includes("أولى")) {
+      currentLevelNum = 1;
+    }
+
+    const secMatch = rawText.match(/0([1-5])\s*طﺠﻌﺎﻄ/);
+    if (secMatch) {
+      currentSectionNum = parseInt(secMatch[1]);
+    }
+
+    // استخراج أسطر التلاميذ بحساب أرقام التعاريف
+    const items = textContent.items;
+    let lines = [];
+    let lineMap = {};
 
     items.forEach(item => {
       const y = Math.round(item.transform[5]);
-      if (currentY === null || Math.abs(y - currentY) > 4) {
-        if (currentLine.length > 0) lines.push(currentLine.join(" "));
-        currentLine = [item.str];
-        currentY = y;
-      } else {
-        currentLine.push(item.str);
-      }
+      if (!lineMap[y]) lineMap[y] = [];
+      lineMap[y].push(item.str);
     });
-    if (currentLine.length > 0) lines.push(currentLine.join(" "));
 
-    let pageLevel = "";
-    let pageSection = "";
+    const sortedYs = Object.keys(lineMap).sort((a, b) => b - a);
+    sortedYs.forEach(y => {
+      lines.push(lineMap[y].join(" "));
+    });
 
     lines.forEach(line => {
-      const levelMatch = line.match(/(أولى|ثانية|ثالثة|رابعة)\s*متوسط\s*(\d+)?/);
-      if (levelMatch) {
-        pageLevel = levelMatch[1];
-        if (levelMatch[2]) pageSection = levelMatch[2];
-      }
-
-      // البحث عن السطور التي تحتفظ بأرقام التعريف الوطنية
-      const ninMatch = line.match(/(\d{15,16})/);
+      const ninMatch = line.match(/(\d{15,18})/);
       if (ninMatch) {
         const nationalId = ninMatch[1];
-        // تنظيف الاسم واللقب وتاريخ الميلاد
         const dobMatch = line.match(/(\d{4}-\d{2}-\d{2})/);
-        const genderMatch = line.includes("أنثى") ? "أنثى" : (line.includes("ذكر") ? "ذكر" : "");
+        const genderMatch = line.includes("أنثى") || line.includes("ىﺑﻇأ") ? "أنثى" : "ذكر";
 
         extractedRows.push({
           "رقم التعريف": nationalId,
           "الاسم واللقب": line,
-          "السنة": pageLevel || "رابعة",
-          "القسم": pageSection || "1",
+          "السنة_رقم": currentLevelNum,
+          "القسم_رقم": currentSectionNum,
           "الجنس": genderMatch,
           "تاريخ الازدياد": dobMatch ? dobMatch[1] : ""
         });
@@ -228,17 +265,20 @@ function buildStudents(rows) {
     let firstName = r["الاسم"] || "";
     let fullName = norm(`${lastName} ${firstName}`);
 
-    // في حال الاستيراد من PDF
     if (!fullName && r["الاسم واللقب"]) {
-      fullName = norm(r["الاسم واللقب"].replace(/\d+/g, '').replace(/\d{4}-\d{2}-\d{2}/g, '').replace(/(أنثى|ذكر)/g, ''));
+      fullName = norm(r["الاسم واللقب"].replace(/\d+/g, '').replace(/\d{4}-\d{2}-\d{2}/g, '').replace(/(أنثى|ذكر|ىﺑﻇأ|ﺾرذ)/g, ''));
     }
 
     if (!fullName) return;
 
-    const levelWord = r["السنة"] || "";
-    const levelNum = LEVEL_MAP[levelWord] || LEVEL_MAP["رابعة"];
-    const section = (r["القسم"] || "1").toString().trim();
-    if (!levelNum || !section) return;
+    let levelNum = r["السنة_رقم"];
+    let section = r["القسم_رقم"];
+
+    if (!levelNum) {
+      const levelWord = r["السنة"] || "";
+      levelNum = LEVEL_MAP[levelWord] || 4;
+      section = (r["القسم"] || "1").toString().trim();
+    }
 
     const className = `${levelNum}م${section}`;
 
@@ -263,7 +303,7 @@ function renderPreview() {
   let html = `<div style="margin-bottom:10px;"><b>${parsedStudents.length}</b> تلميذ موزعين على <b>${classNames.length}</b> قسم:</div>`;
   html += `<div style="display:flex; flex-wrap:wrap; gap:8px;">`;
   classNames.forEach(c => {
-    html += `<span class="status-pill resolved">${c} — ${byClass[c]}</span>`;
+    html += `<span class="status-pill resolved" style="padding:4px 8px; border-radius:4px; background:#e8f4fd; color:#2980b9;"><b>${c}</b>: ${byClass[c]} تلميذ</span>`;
   });
   html += `</div>`;
 
@@ -276,7 +316,6 @@ document.getElementById("confirmBtn").addEventListener("click", async () => {
   btn.disabled = true;
   btn.textContent = "جاري الاستيراد...";
 
-  // 1) تأكد من وجود كل الأقسام، أنشئ الناقص منها
   const neededClasses = [...new Set(parsedStudents.map(s => s.className))];
   const { data: existingClasses } = await db.from("classes").select("id, name");
   const classMap = {};
@@ -293,7 +332,6 @@ document.getElementById("confirmBtn").addEventListener("click", async () => {
     (created || []).forEach(c => classMap[c.name] = c.id);
   }
 
-  // 2) أدخل التلاميذ (تجاهل من له رقم تعريف موجود مسبقاً)
   const { data: existingStudents } = await db.from("students").select("national_id").not("national_id", "is", null);
   const existingIds = new Set((existingStudents || []).map(s => s.national_id));
 
@@ -322,7 +360,7 @@ document.getElementById("confirmBtn").addEventListener("click", async () => {
     insertedCount += chunk.length;
   }
 
-  showResult(`تم استيراد ${insertedCount} تلميذاً بنجاح في ${neededClasses.length} قسم${skipped > 0 ? ` (تم تجاوز ${skipped} مسجّلين مسبقاً)` : ""}.`, true);
+  showResult(`تم استيراد ${insertedCount} تلميذاً بنجاح وتوزيعهم على ${neededClasses.length} أقسام بشكل دقيق${skipped > 0 ? ` (تم تجاوز ${skipped} مسجّلين مسبقاً)` : ""}.`, true);
   btn.disabled = false;
   btn.textContent = "تأكيد الاستيراد";
   document.getElementById("previewBox").style.display = "none";
@@ -332,8 +370,8 @@ document.getElementById("confirmBtn").addEventListener("click", async () => {
 function showResult(msg, ok) {
   const box = document.getElementById("resultBox");
   box.style.display = "block";
-  box.style.background = ok ? "var(--resolved-light)" : "var(--absent-light)";
-  box.style.color = ok ? "var(--resolved)" : "var(--absent)";
+  box.style.background = ok ? "var(--resolved-light, #e8f8f5)" : "var(--absent-light, #fadbd8)";
+  box.style.color = ok ? "var(--resolved, #27ae60)" : "var(--absent, #e74c3c)";
   box.textContent = msg;
 }
 </script>
