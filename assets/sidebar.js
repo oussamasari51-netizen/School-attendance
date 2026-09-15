@@ -32,17 +32,17 @@ async function installPWA() {
   deferredPrompt = null;
 }
 
-// ===== 3. القائمة الجانبية الموحّدة (تم إضافة supervisor لجميع الخيارات المطلوبة) =====
+// ===== 3. القائمة الجانبية الموحّدة (إضافة "التلاميذ" فقط للمشرف) =====
 const NAV_ITEMS = [
   { key: "admin",     href: "admin.html",     icon: "layout-dashboard", label: "الرئيسية",        roles: ["admin", "supervisor"] },
   { key: "students",  href: "students.html",  icon: "users",            label: "التلاميذ",        roles: ["admin", "supervisor"] },
-  { key: "import",    href: "import.html",    icon: "upload",           label: "استيراد التلاميذ", roles: ["admin", "supervisor"] },
-  { key: "teachers",  href: "teachers.html",  icon: "user-round",       label: "الأساتذة",        roles: ["admin", "supervisor"] },
-  { key: "timetable", href: "timetable.html", icon: "calendar-days",   label: "استعمال الزمن",   roles: ["admin", "supervisor"] },
+  { key: "import",    href: "import.html",    icon: "upload",           label: "استيراد التلاميذ", roles: ["admin"] },
+  { key: "teachers",  href: "teachers.html",  icon: "user-round",       label: "الأساتذة",        roles: ["admin"] },
+  { key: "timetable", href: "timetable.html", icon: "calendar-days",   label: "استعمال الزمن",   roles: ["admin"] },
   { key: "duty",      href: "duty.html",      icon: "shield-check",     label: "جدول المشرفين",    roles: ["admin", "supervisor"] },
   { key: "coverage",  href: "coverage.html",  icon: "refresh-cw",       label: "المداومة",        roles: ["admin", "supervisor"] },
   { key: "reports",   href: "reports.html",   icon: "bar-chart-3",      label: "التقارير",        roles: ["admin", "supervisor"] },
-  { key: "census",    href: "census.html",    icon: "calculator",       label: "الحساب الدوري",   roles: ["admin", "supervisor"] },
+  { key: "census",    href: "census.html",    icon: "calculator",       label: "الحساب الدوري",   roles: ["admin"] },
 ];
 
 (function loadLucide() {
