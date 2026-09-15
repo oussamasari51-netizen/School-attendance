@@ -118,7 +118,7 @@
         </div>
       </div>
       <div class="user-chip">
-        <span id="adminName">ساري أسامة</span>
+        <span id="adminName">...</span>
         <button onclick="logout()">خروج</button>
       </div>
     </div>
@@ -287,7 +287,6 @@
 
 <script src="assets/config.js"></script>
 <script src="assets/sidebar.js"></script>
-<script>renderSidebar("students");</script>
 <script>
 let profile = null;
 let allClasses = [];
@@ -300,10 +299,12 @@ function todayISO() {
 }
 
 async function init() {
-  profile = await requireSession("admin");
+  // السماح للمشرف والآدمن بالدخول
+  profile = await requireSession(["admin", "supervisor"]);
   if (profile && profile.full_name) {
     document.getElementById("adminName").textContent = profile.full_name;
   }
+  renderSidebar("students", profile ? profile.role : undefined);
   await loadClasses();
 }
 init();
@@ -436,9 +437,12 @@ document.getElementById("studentForm").addEventListener("submit", async (e) => {
     class_id: selectedClassId,
     national_id: document.getElementById("nationalIdInput").value.trim() || null,
     gender: document.getElementById("genderSelect").value,
-    active: true,
-    enrollment_date: id ? undefined : todayISO()
+    active: true
   };
+
+  if (!id) {
+    payload.enrollment_date = todayISO();
+  }
 
   let error = null;
   if (id) {
@@ -528,7 +532,7 @@ async function deleteClass(e, classId, className) {
   }
 }
 
-// 8. جلب بيانات شهر سبتمبر (الوافدون والمغادرون)
+// 8. جلب بيانات حركة الشهر (الوافدون والمغادرون) بشكل صحيح
 function openMonthlyReportModal() {
   const year = "2026";
   const month = "09"; 
@@ -548,15 +552,19 @@ async function generateMonthlyReport() {
 
   document.getElementById("reportPeriodTitle").textContent = `الشهر: ${month} / ${year} (جميع الأقسام)`;
 
-  // أ) جلب التلاميذ المنسحبين (المغادرين)
+  // إنشاء خريطة الأقسام لربط اسم القسم بـ id بسهولة
+  const classMap = {};
+  allClasses.forEach(c => classMap[c.id] = c.name);
+
+  // أ) جلب التلاميذ المغادرين
   const { data: departures } = await db.from("students")
-    .select("*, classes(name)")
+    .select("*")
     .eq("active", false);
 
   const depBody = document.getElementById("departuresReportBody");
   
   const filteredDepartures = (departures || []).filter(s => {
-    if (!s.withdrawal_date) return true; // إظهار من حُذف سابقاً
+    if (!s.withdrawal_date) return true;
     return s.withdrawal_date >= startDate && s.withdrawal_date <= endDate;
   });
 
@@ -567,16 +575,16 @@ async function generateMonthlyReport() {
       <tr>
         <td style="color:#000;">${i + 1}</td>
         <td style="color:#000;"><b>${s.full_name}</b></td>
-        <td style="color:#000;">${s.classes ? s.classes.name : '-'}</td>
+        <td style="color:#000;">${classMap[s.class_id] || '-'}</td>
         <td style="color:#000;">${s.withdrawal_reason || 'تحويل/حذف'}</td>
         <td style="color:#000;">${s.withdrawal_date || 'غير محدد'}</td>
       </tr>
     `).join('');
   }
 
-  // ب) جلب التلاميذ الوافدين الجدد (المُضافين يدوياً فقط في هذا الشهر)
+  // ب) جلب التلاميذ الوافدين الجدد
   const { data: arrivals } = await db.from("students")
-    .select("*, classes(name)")
+    .select("*")
     .eq("active", true)
     .gte("enrollment_date", startDate)
     .lte("enrollment_date", endDate);
@@ -590,7 +598,7 @@ async function generateMonthlyReport() {
       <tr>
         <td style="color:#000;">${i + 1}</td>
         <td style="color:#000;"><b>${s.full_name}</b></td>
-        <td style="color:#000;">${s.classes ? s.classes.name : '-'}</td>
+        <td style="color:#000;">${classMap[s.class_id] || '-'}</td>
         <td style="color:#000;">${s.gender || '-'}</td>
         <td style="color:#000;">${s.enrollment_date || '-'}</td>
       </tr>
