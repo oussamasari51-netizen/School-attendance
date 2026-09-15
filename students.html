@@ -528,7 +528,7 @@ async function deleteClass(e, classId, className) {
   }
 }
 
-// 8. جلب بيانات سبتمبر وتحسين الفلترة لمنع القوائم الفارغة
+// 8. جلب بيانات شهر سبتمبر (الوافدون والمغادرون)
 function openMonthlyReportModal() {
   const year = "2026";
   const month = "09"; 
@@ -548,16 +548,15 @@ async function generateMonthlyReport() {
 
   document.getElementById("reportPeriodTitle").textContent = `الشهر: ${month} / ${year} (جميع الأقسام)`;
 
-  // أ) جلب التلاميذ المنسحبين (المغادرين) مع فحص مرن للتواريخ
+  // أ) جلب التلاميذ المنسحبين (المغادرين)
   const { data: departures } = await db.from("students")
     .select("*, classes(name)")
     .eq("active", false);
 
   const depBody = document.getElementById("departuresReportBody");
   
-  // تصفية المغادرين الخاصة بشهر سبتمبر
   const filteredDepartures = (departures || []).filter(s => {
-    if (!s.withdrawal_date) return true; // إظهار من حُذف سابقاً بدون تاريخ
+    if (!s.withdrawal_date) return true; // إظهار من حُذف سابقاً
     return s.withdrawal_date >= startDate && s.withdrawal_date <= endDate;
   });
 
@@ -575,27 +574,25 @@ async function generateMonthlyReport() {
     `).join('');
   }
 
-  // ب) جلب التلاميذ الوافدين الجدد
+  // ب) جلب التلاميذ الوافدين الجدد (المُضافين يدوياً فقط في هذا الشهر)
   const { data: arrivals } = await db.from("students")
     .select("*, classes(name)")
-    .eq("active", true);
+    .eq("active", true)
+    .gte("enrollment_date", startDate)
+    .lte("enrollment_date", endDate);
 
   const arrBody = document.getElementById("arrivalsReportBody");
-  const filteredArrivals = (arrivals || []).filter(s => {
-    if (!s.enrollment_date) return true; // إظهار التلميذ إذا تم إدخاله بدون تاريخ التحاق سابقاً
-    return s.enrollment_date >= startDate && s.enrollment_date <= endDate;
-  });
 
-  if (filteredArrivals.length === 0) {
+  if (!arrivals || arrivals.length === 0) {
     arrBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#000;">لا يوجد تلاميذ وافدون جدد خلال هذا الشهر.</td></tr>`;
   } else {
-    arrBody.innerHTML = filteredArrivals.map((s, i) => `
+    arrBody.innerHTML = arrivals.map((s, i) => `
       <tr>
         <td style="color:#000;">${i + 1}</td>
         <td style="color:#000;"><b>${s.full_name}</b></td>
         <td style="color:#000;">${s.classes ? s.classes.name : '-'}</td>
         <td style="color:#000;">${s.gender || '-'}</td>
-        <td style="color:#000;">${s.enrollment_date || 'سابق'}</td>
+        <td style="color:#000;">${s.enrollment_date || '-'}</td>
       </tr>
     `).join('');
   }
