@@ -61,6 +61,7 @@
         <th>الجنس</th>
         <th>القسم</th>
         <th>تاريخ الازدياد</th>
+        <th>الحالة</th>
         <th>إجراءات</th>
       </tr>
     </thead>
@@ -113,6 +114,34 @@
   </div>
 </div>
 
+<!-- Modal شطب / حذف تلميذ (النافذة الجديدة) -->
+<div id="deleteModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card">
+    <h2 style="color:#dc2626; margin-bottom:6px;">شطب / حذف تلميذ</h2>
+    <input type="hidden" id="deleteStudentId">
+
+    <div style="margin-top:10px;">
+      <label>سبب الشطب:</label>
+      <select id="deleteReason" class="input-field" onchange="toggleOtherReason()">
+        <option value="تغيير مؤسسة">تغيير مؤسسة (تحويل)</option>
+        <option value="التخلي عن الدراسة">التخلي عن الدراسة (انقطاع)</option>
+        <option value="حذف نهائي">حذف نهائي من القاعدة</option>
+        <option value="أخرى">أخرى (حدد السبب)</option>
+      </select>
+    </div>
+
+    <div id="otherReasonBox" style="margin-top:10px; display:none;">
+      <label>السبب بالتفصيل:</label>
+      <input type="text" id="customReason" class="input-field" placeholder="أدخل السبب...">
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:18px;">
+      <button class="btn-primary" style="background:#dc2626;" onclick="confirmDeleteStudent()">تأكيد الشطب</button>
+      <button class="btn-secondary" onclick="closeDeleteModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
 <script src="assets/config.js"></script>
 <script src="assets/sidebar.js"></script>
 <script>
@@ -158,7 +187,7 @@ async function loadStudents() {
 
   const { data, error } = await db
     .from("students")
-    .select("id, full_name, gender, birth_date, national_id, class_id")
+    .select("id, full_name, gender, birth_date, national_id, class_id, status, exit_reason")
     .order("full_name");
 
   if (error) {
@@ -188,19 +217,21 @@ function renderTable() {
   body.innerHTML = "";
 
   if (filtered.length === 0) {
-    body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--ink-soft);">لا يوجد تلاميذ للعرض.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--ink-soft);">لا يوجد تلاميذ للعرض.</td></tr>`;
   } else {
     filtered.forEach(s => {
+      const isExited = s.status === 'مغادر';
       body.innerHTML += `
-        <tr>
+        <tr style="${isExited ? 'opacity:0.6; background:rgba(220,38,38,0.05);' : ''}">
           <td>${s.national_id || '-'}</td>
           <td><b>${s.full_name}</b></td>
           <td>${s.gender || '-'}</td>
           <td><span class="status-pill resolved">${classMap[s.class_id] || 'غير محدد'}</span></td>
           <td>${s.birth_date || '-'}</td>
+          <td>${isExited ? `<span style="color:#dc2626; font-weight:bold;">مغادر (${s.exit_reason || ''})</span>` : '<span style="color:#16a34a;">مستمر</span>'}</td>
           <td>
             <button class="action-btn" onclick="openEditModal('${s.id}')" title="تعديل">✏️</button>
-            <button class="action-btn" onclick="deleteStudent('${s.id}')" title="حذف">🗑️</button>
+            <button class="action-btn" onclick="openDeleteModal('${s.id}')" title="حذف/شطب" style="color:#dc2626;">🗑️</button>
           </td>
         </tr>
       `;
@@ -253,7 +284,7 @@ async function saveStudent() {
     return;
   }
 
-  const payload = { full_name, class_id, gender, national_id, birth_date, source: 'manual', enrollment_date: new Date().toISOString().split('T')[0] };
+  const payload = { full_name, class_id, gender, national_id, birth_date, source: 'manual', enrollment_date: new Date().toISOString().split('T')[0], status: 'مستمر' };
 
   if (id) {
     delete payload.source;
@@ -267,9 +298,45 @@ async function saveStudent() {
   loadStudents();
 }
 
-async function deleteStudent(id) {
-  if (!confirm("هل أنت متأكد من حذف هذا التلميذ؟")) return;
-  await db.from("students").delete().eq("id", id);
+// --- التعامل مع نافذة الشطب والحذف ---
+function openDeleteModal(id) {
+  document.getElementById("deleteStudentId").value = id;
+  document.getElementById("deleteReason").value = "تغيير مؤسسة";
+  toggleOtherReason();
+  document.getElementById("deleteModal").style.display = "flex";
+}
+
+function closeDeleteModal() {
+  document.getElementById("deleteModal").style.display = "none";
+}
+
+function toggleOtherReason() {
+  const val = document.getElementById("deleteReason").value;
+  document.getElementById("otherReasonBox").style.display = (val === "أخرى") ? "block" : "none";
+}
+
+async function confirmDeleteStudent() {
+  const id = document.getElementById("deleteStudentId").value;
+  const reasonType = document.getElementById("deleteReason").value;
+  let finalReason = reasonType;
+
+  if (reasonType === "أخرى") {
+    finalReason = document.getElementById("customReason").value.trim() || "سبب آخر";
+  }
+
+  if (reasonType === "حذف نهائي") {
+    if (confirm("هل أنت متأكد من الحذف النهائي للتلميذ من قاعدة البيانات؟")) {
+      await db.from("students").delete().eq("id", id);
+    }
+  } else {
+    await db.from("students").update({
+      status: 'مغادر',
+      exit_reason: finalReason,
+      exit_date: new Date().toISOString().split('T')[0]
+    }).eq("id", id);
+  }
+
+  closeDeleteModal();
   loadStudents();
 }
 
