@@ -109,6 +109,7 @@
 
   .btn-edit { background: #f39c12; color: #fff; }
   .btn-del { background: #e74c3c; color: #fff; }
+  .btn-reactivate { background: #27ae60; color: #fff; }
   .btn-add { background: #27ae60; color: #fff; font-weight: bold; }
 
   /* النوافذ المنبثقة Modals */
@@ -213,7 +214,12 @@
             <h3 id="selectedClassTitle" style="margin:0; font-size:16px; color:#3498db;"></h3>
             <div id="selectedClassCount" style="font-size:12px; color:#aaa;"></div>
           </div>
-          <button class="action-btn btn-add" onclick="openAddStudentModal()">+ إضافة تلميذ للقسم</button>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <label style="font-size:12px; color:#ccc; cursor:pointer;">
+              <input type="checkbox" id="showInactive" onchange="loadStudents()"> إظهار المنسحبين
+            </label>
+            <button class="action-btn btn-add" onclick="openAddStudentModal()">+ إضافة تلميذ</button>
+          </div>
         </div>
 
         <div class="student-list" id="studentList"></div>
@@ -224,7 +230,7 @@
   </div>
 </div>
 
-<!-- Modal: إضافة/تعديل تلميذ -->
+<!-- Modal 1: إضافة/تعديل تلميذ -->
 <div class="modal-backdrop" id="studentModal">
   <div class="modal-sheet">
     <h3 id="modalTitle" style="margin-top:0; color:#fff; font-size:16px;">إضافة تلميذ جديد</h3>
@@ -235,6 +241,11 @@
       <div class="field-group">
         <label>الاسم واللقب *</label>
         <input type="text" id="fullNameInput" required placeholder="مثال: علي بلقاسم">
+      </div>
+
+      <div class="field-group">
+        <label>القسم الحالي *</label>
+        <select id="classSelectInput" required></select>
       </div>
 
       <div class="field-group">
@@ -252,9 +263,36 @@
 
       <div style="display:flex; gap:8px; margin-top:15px;">
         <button type="submit" class="action-btn btn-add" style="flex:1; padding:10px;">حفظ</button>
-        <button type="button" class="action-btn" style="background:#555; color:#fff;" onclick="closeStudentModal()">إلغاء</button>
+        <button type="button" class="action-btn" style="background:#555; color:#fff;" onclick="closeModal('studentModal')">إلغاء</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal 2: نافذة سبب وتاريخ الخروج (الحذف) -->
+<div class="modal-backdrop" id="withdrawModal">
+  <div class="modal-sheet">
+    <h3 id="withdrawModalTitle" style="margin-top:0; color:#e74c3c; font-size:15px;">حذف التلميذ من القسم</h3>
+    <p style="font-size:12px; color:#aaa; margin-bottom:12px;">اختر سبب الخروج وتاريخه لتأكيد الخروج من القوائم النشطة.</p>
+    
+    <div class="field-group">
+      <label>سبب الخروج</label>
+      <select id="withdrawReason">
+        <option value="تحويل مؤسسة">تحويل مؤسسة</option>
+        <option value="انقطاع عن الدراسة">انقطاع عن الدراسة</option>
+        <option value="أخرى">أخرى</option>
+      </select>
+    </div>
+
+    <div class="field-group">
+      <label>تاريخ الخروج</label>
+      <input type="date" id="withdrawDate">
+    </div>
+
+    <div style="display:flex; gap:8px; margin-top:15px;">
+      <button type="button" class="action-btn btn-del" id="confirmWithdrawBtn" style="flex:1; padding:10px;">تأكيد الحذف</button>
+      <button type="button" class="action-btn" style="background:#555; color:#fff;" onclick="closeModal('withdrawModal')">إلغاء</button>
+    </div>
   </div>
 </div>
 
@@ -266,6 +304,11 @@ let profile = null;
 let allClasses = [];
 let selectedClass = null;
 let currentStudents = [];
+let targetStudentForWithdraw = null;
+
+function todayISO() {
+  return new Date().toISOString().split('T')[0];
+}
 
 async function init() {
   profile = await requireSession("admin");
@@ -276,7 +319,7 @@ async function init() {
 }
 init();
 
-// 1. تحميل وتنسيق بطاقات الأقسام
+// 1. تحميل بطاقات الأقسام
 async function loadClasses() {
   const { data, error } = await db.from("classes").select("*").order("name");
   if (error) return console.error(error);
@@ -284,6 +327,13 @@ async function loadClasses() {
   allClasses = data || [];
   const grid = document.getElementById("classGrid");
   grid.innerHTML = "";
+
+  // تعبئة قائمة الأقسام في النموذج المنبثق
+  const classSelectInput = document.getElementById("classSelectInput");
+  classSelectInput.innerHTML = "";
+  allClasses.forEach(c => {
+    classSelectInput.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+  });
 
   if (allClasses.length === 0) {
     grid.innerHTML = `<div style="color:#aaa; font-size:12px; grid-column:1/-1;">لا توجد أقسام. قم بإضافة قسم من الأعلى.</div>`;
@@ -307,10 +357,10 @@ async function loadClasses() {
   });
 }
 
-// 2. اختيار قسم لعرض قوائمه
+// 2. اختيار القسم
 async function selectClass(cls) {
   selectedClass = cls;
-  await loadClasses(); // لتحديث البطاقة النشطة
+  await loadClasses();
 
   document.getElementById("studentSection").style.display = "block";
   document.getElementById("selectedClassTitle").textContent = `تلاميذ قسم: ${cls.name}`;
@@ -319,20 +369,27 @@ async function selectClass(cls) {
   document.getElementById("studentSection").scrollIntoView({ behavior: "smooth" });
 }
 
-// 3. تحميل تلاميذ القسم المنسق فقط
+// 3. تحميل التلاميذ مع إمكانية عرض المنسحبين
 async function loadStudents() {
   if (!selectedClass) return;
   const list = document.getElementById("studentList");
   list.innerHTML = `<div style="color:#aaa; font-size:13px; text-align:center; padding:15px;">جاري تحميل التلاميذ...</div>`;
 
-  const { data, error } = await db.from("students").select("*").eq("class_id", selectedClass.id).order("full_name");
+  const showInactive = document.getElementById("showInactive").checked;
+  let query = db.from("students").select("*").eq("class_id", selectedClass.id).order("full_name");
+  
+  if (!showInactive) {
+    query = query.eq("active", true);
+  }
+
+  const { data, error } = await query;
   if (error) return console.error(error);
 
   currentStudents = data || [];
   document.getElementById("selectedClassCount").textContent = `العدد الإجمالي: ${currentStudents.length} تلميذ`;
 
   if (currentStudents.length === 0) {
-    list.innerHTML = `<div style="color:#aaa; font-size:13px; text-align:center; padding:20px; background:rgba(255,255,255,0.02); border-radius:8px;">لا يوجد تلاميذ في هذا القسم حالياً.</div>`;
+    list.innerHTML = `<div style="color:#aaa; font-size:13px; text-align:center; padding:20px; background:rgba(255,255,255,0.02); border-radius:8px;">لا يوجد تلاميذ مسجلين لعرضهم.</div>`;
     return;
   }
 
@@ -340,21 +397,125 @@ async function loadStudents() {
   currentStudents.forEach((s, idx) => {
     const row = document.createElement("div");
     row.className = "student-row";
+    
+    const isInactive = s.active === false;
+    const strikeStyle = isInactive ? "text-decoration:line-through; color:#888;" : "";
+    const withdrawMeta = isInactive && s.withdrawal_date ? ` | الخروج: ${s.withdrawal_reason || ''} (${s.withdrawal_date})` : "";
+
     row.innerHTML = `
       <div>
-        <div class="sname">${idx + 1}. ${s.full_name}</div>
-        <div class="smeta">الجنس: ${s.gender || "-"} | رقم التعريف: ${s.national_id || "-"}</div>
+        <div class="sname" style="${strikeStyle}">${idx + 1}. ${s.full_name} ${isInactive ? '<span style="font-size:10px; color:#e74c3c;">(منسحب)</span>' : ''}</div>
+        <div class="smeta">الجنس: ${s.gender || "-"} | رقم التعريف: ${s.national_id || "-"}${withdrawMeta}</div>
       </div>
       <div style="display:flex; gap:6px;">
-        <button class="action-btn btn-edit" onclick="openEditStudentModal('${s.id}')">تعديل</button>
-        <button class="action-btn btn-del" onclick="deleteStudent('${s.id}')">حذف</button>
+        ${!isInactive ? `<button class="action-btn btn-edit" onclick="openEditStudentModal('${s.id}')">تعديل</button>` : ''}
+        ${!isInactive 
+          ? `<button class="action-btn btn-del" onclick="openWithdrawModal('${s.id}')">حذف</button>`
+          : `<button class="action-btn btn-reactivate" onclick="reactivateStudent('${s.id}')">إعادة تفعيل</button>`
+        }
       </div>
     `;
     list.appendChild(row);
   });
 }
 
-// 4. إضافة قسم تلقائياً
+// 4. نافذة وتعديل/إضافة تلميذ (شاملة خيار تغيير القسم)
+function openAddStudentModal() {
+  document.getElementById("studentId").value = "";
+  document.getElementById("studentForm").reset();
+  document.getElementById("classSelectInput").value = selectedClass.id;
+  document.getElementById("modalTitle").textContent = `إضافة تلميذ جديد إلى (${selectedClass.name})`;
+  document.getElementById("studentModal").classList.add("open");
+}
+
+function openEditStudentModal(id) {
+  const s = currentStudents.find(item => item.id === id);
+  if (!s) return;
+
+  document.getElementById("studentId").value = s.id;
+  document.getElementById("fullNameInput").value = s.full_name;
+  document.getElementById("classSelectInput").value = s.class_id; // يمكنك هنا تغيير قسمه
+  document.getElementById("nationalIdInput").value = s.national_id || "";
+  document.getElementById("genderSelect").value = s.gender || "ذكر";
+
+  document.getElementById("modalTitle").textContent = "تعديل بيانات التلميذ";
+  document.getElementById("studentModal").classList.add("open");
+}
+
+document.getElementById("studentForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = document.getElementById("studentId").value;
+  const selectedClassId = document.getElementById("classSelectInput").value;
+
+  const payload = {
+    full_name: document.getElementById("fullNameInput").value.trim(),
+    class_id: selectedClassId,
+    national_id: document.getElementById("nationalIdInput").value.trim() || null,
+    gender: document.getElementById("genderSelect").value,
+    active: true
+  };
+
+  let error = null;
+  if (id) {
+    const res = await db.from("students").update(payload).eq("id", id);
+    error = res.error;
+  } else {
+    const res = await db.from("students").insert([payload]);
+    error = res.error;
+  }
+
+  if (error) alert("خطأ: " + error.message);
+  else {
+    closeModal("studentModal");
+    await loadStudents();
+  }
+});
+
+// 5. إدارة الحذف وسبب الخروج (Withdrawal Modal)
+function openWithdrawModal(id) {
+  const s = currentStudents.find(item => item.id === id);
+  if (!s) return;
+
+  targetStudentForWithdraw = s;
+  document.getElementById("withdrawModalTitle").textContent = `حذف "${s.full_name}" من القسم`;
+  document.getElementById("withdrawDate").value = todayISO();
+  document.getElementById("withdrawDate").max = todayISO();
+  document.getElementById("withdrawReason").value = "تحويل مؤسسة";
+  
+  document.getElementById("withdrawModal").classList.add("open");
+}
+
+document.getElementById("confirmWithdrawBtn").addEventListener("click", async () => {
+  if (!targetStudentForWithdraw) return;
+
+  const reason = document.getElementById("withdrawReason").value;
+  const date = document.getElementById("withdrawDate").value || todayISO();
+
+  const { error } = await db.from("students")
+    .update({ 
+      active: false, 
+      withdrawal_date: date, 
+      withdrawal_reason: reason 
+    })
+    .eq("id", targetStudentForWithdraw.id);
+
+  closeModal("withdrawModal");
+
+  if (error) alert("حدث خطأ أثناء تنفيذ العملية: " + error.message);
+  else await loadStudents();
+});
+
+// 6. إعادة تفعيل التلميذ المنسحب
+async function reactivateStudent(id) {
+  const { error } = await db.from("students")
+    .update({ active: true, withdrawal_date: null, withdrawal_reason: null })
+    .eq("id", id);
+
+  if (error) alert("حدث خطأ أثناء إعادة التفعيل: " + error.message);
+  else await loadStudents();
+}
+
+// 7. إضافة وحذف قسم
 document.getElementById("addSectionBtn").addEventListener("click", async () => {
   const level = document.getElementById("levelSelect").value;
   const prefix = `${level}م`;
@@ -373,10 +534,9 @@ document.getElementById("addSectionBtn").addEventListener("click", async () => {
   else await loadClasses();
 });
 
-// 5. حذف قسم
 async function deleteClass(e, classId, className) {
   e.stopPropagation();
-  if (!confirm(`هل أنت متأكد من حذف قسم (${className})؟ سيؤدي هذا لحذف جميع التلاميذ بداخل القسم!`)) return;
+  if (!confirm(`هل أنت متأكد من حذف قسم (${className})؟`)) return;
 
   const { error } = await db.from("classes").delete().eq("id", classId);
   if (error) alert("خطأ: " + error.message);
@@ -386,62 +546,8 @@ async function deleteClass(e, classId, className) {
   }
 }
 
-// 6. التحكم بالنموذج المنبثق للتلاميذ (Modal)
-function openAddStudentModal() {
-  document.getElementById("studentId").value = "";
-  document.getElementById("studentForm").reset();
-  document.getElementById("modalTitle").textContent = `إضافة تلميذ إلى (${selectedClass.name})`;
-  document.getElementById("studentModal").classList.add("open");
-}
-
-function openEditStudentModal(id) {
-  const s = currentStudents.find(item => item.id === id);
-  if (!s) return;
-
-  document.getElementById("studentId").value = s.id;
-  document.getElementById("fullNameInput").value = s.full_name;
-  document.getElementById("nationalIdInput").value = s.national_id || "";
-  document.getElementById("genderSelect").value = s.gender || "ذكر";
-
-  document.getElementById("modalTitle").textContent = "تعديل بيانات التلميذ";
-  document.getElementById("studentModal").classList.add("open");
-}
-
-function closeStudentModal() {
-  document.getElementById("studentModal").classList.remove("open");
-}
-
-document.getElementById("studentForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const id = document.getElementById("studentId").value;
-  const payload = {
-    full_name: document.getElementById("fullNameInput").value.trim(),
-    national_id: document.getElementById("nationalIdInput").value.trim() || null,
-    gender: document.getElementById("genderSelect").value,
-    class_id: selectedClass.id
-  };
-
-  let error = null;
-  if (id) {
-    const res = await db.from("students").update(payload).eq("id", id);
-    error = res.error;
-  } else {
-    const res = await db.from("students").insert([payload]);
-    error = res.error;
-  }
-
-  if (error) alert("خطأ: " + error.message);
-  else {
-    closeStudentModal();
-    await loadStudents();
-  }
-});
-
-async function deleteStudent(id) {
-  if (!confirm("هل أنت متأكد من حذف هذا التلميذ؟")) return;
-  const { error } = await db.from("students").delete().eq("id", id);
-  if (error) alert("خطأ: " + error.message);
-  else await loadStudents();
+function closeModal(modalId) {
+  document.getElementById(modalId).classList.remove("open");
 }
 </script>
 <div class="app-footer" style="text-align:center; padding:15px; color:#aaa; font-size:12px;">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
