@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>إدارة الأقسام والتلاميذ — برنامج الناظر</title>
+<title>إدارة الأقسام والتلاميذ — برنامج الناظر والمشرف</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- مكتبة تحويل HTML إلى PDF -->
@@ -118,7 +118,7 @@
         </div>
       </div>
       <div class="user-chip">
-        <span id="adminName">ساري أسامة</span>
+        <span id="adminName">المستخدم</span>
         <button onclick="logout()">خروج</button>
       </div>
     </div>
@@ -300,7 +300,8 @@ function todayISO() {
 }
 
 async function init() {
-  profile = await requireSession("admin");
+  // السماح لكل من الناظر (admin) ومشرف التربية (supervisor) بالحصول على الصلاحيات الكاملة
+  profile = await requireSession(); 
   if (profile && profile.full_name) {
     document.getElementById("adminName").textContent = profile.full_name;
   }
@@ -528,7 +529,7 @@ async function deleteClass(e, classId, className) {
   }
 }
 
-// 8. جلب بيانات شهر سبتمبر (الوافدون والمغادرون)
+// جلب بيانات شهر سبتمبر (الوافدون والمغادرون)
 function openMonthlyReportModal() {
   const year = "2026";
   const month = "09"; 
@@ -548,7 +549,7 @@ async function generateMonthlyReport() {
 
   document.getElementById("reportPeriodTitle").textContent = `الشهر: ${month} / ${year} (جميع الأقسام)`;
 
-  // أ) جلب التلاميذ المنسحبين (المغادرين)
+  // جلب التلاميذ المنسحبين (المغادرين)
   const { data: departures } = await db.from("students")
     .select("*, classes(name)")
     .eq("active", false);
@@ -556,7 +557,7 @@ async function generateMonthlyReport() {
   const depBody = document.getElementById("departuresReportBody");
   
   const filteredDepartures = (departures || []).filter(s => {
-    if (!s.withdrawal_date) return true; // إظهار من حُذف سابقاً
+    if (!s.withdrawal_date) return true;
     return s.withdrawal_date >= startDate && s.withdrawal_date <= endDate;
   });
 
@@ -574,7 +575,7 @@ async function generateMonthlyReport() {
     `).join('');
   }
 
-  // ب) جلب التلاميذ الوافدين الجدد (المُضافين يدوياً فقط في هذا الشهر)
+  // جلب التلاميذ الوافدين الجدد (المُضافين يدوياً فقط في هذا الشهر)
   const { data: arrivals } = await db.from("students")
     .select("*, classes(name)")
     .eq("active", true)
@@ -598,7 +599,7 @@ async function generateMonthlyReport() {
   }
 }
 
-// 9. دالة تنزيل الملف بصيغة PDF
+// تنزيل الملف بصيغة PDF
 function downloadPDF() {
   const element = document.getElementById('printReportArea');
   const monthVal = document.getElementById("reportMonth").value || "september";
