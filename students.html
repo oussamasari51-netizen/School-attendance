@@ -6,7 +6,6 @@
 <title>إدارة التلاميذ — نظام الغيابات</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- مكتبة طباعة حركة سبتمبر PDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
   .filter-bar { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; align-items:center; }
@@ -49,7 +48,6 @@
     <input type="text" id="searchInput" placeholder="ابحث باسم التلميذ...">
 
     <div style="margin-right:auto; display:flex; gap:8px;">
-      <!-- الإضافة الأولى: زر طباعة حركة سبتمبر -->
       <button class="btn-secondary" onclick="exportSeptemberReportPDF()">📄 حركة سبتمبر (PDF)</button>
       <button class="btn-primary" onclick="openAddModal()">➕ إضافة تلميذ جديد</button>
     </div>
@@ -65,7 +63,6 @@
         <th>الجنس</th>
         <th>القسم</th>
         <th>تاريخ الازدياد</th>
-        <th>الحالة</th>
         <th>إجراءات</th>
       </tr>
     </thead>
@@ -118,14 +115,14 @@
   </div>
 </div>
 
-<!-- الإضافة الثانية: النافذة المنبثقة لسبب الشطب / الحذف -->
+<!-- Modal سبب الشطب والحذف -->
 <div id="deleteModal" class="modal-backdrop" style="display:none;">
   <div class="modal-card">
     <h2 style="color:#dc2626; margin-bottom:6px;">شطب / حذف تلميذ</h2>
     <input type="hidden" id="deleteStudentId">
 
     <div style="margin-top:10px;">
-      <label>سبب الشطب / المغادرة:</label>
+      <label>سبب الشطب:</label>
       <select id="deleteReason" class="input-field" onchange="toggleOtherReason()">
         <option value="تغيير مؤسسة">تغيير مؤسسة (تحويل)</option>
         <option value="التخلي عن الدراسة">التخلي عن الدراسة (انقطاع)</option>
@@ -188,9 +185,10 @@ async function loadStudents() {
   document.getElementById("loadingText").style.display = "block";
   document.getElementById("studentsTable").style.display = "none";
 
+  // تم إرجاع الاستعلام الأصلي تماماً دون أعمدة زائدة
   const { data, error } = await db
     .from("students")
-    .select("id, full_name, gender, birth_date, national_id, class_id, status, exit_reason, source, enrollment_date")
+    .select("id, full_name, gender, birth_date, national_id, class_id")
     .order("full_name");
 
   if (error) {
@@ -220,21 +218,19 @@ function renderTable() {
   body.innerHTML = "";
 
   if (filtered.length === 0) {
-    body.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--ink-soft);">لا يوجد تلاميذ للعرض.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--ink-soft);">لا يوجد تلاميذ للعرض.</td></tr>`;
   } else {
     filtered.forEach(s => {
-      const isExited = s.status === 'مغادر';
       body.innerHTML += `
-        <tr style="${isExited ? 'opacity:0.6; background:rgba(220,38,38,0.05);' : ''}">
+        <tr>
           <td>${s.national_id || '-'}</td>
           <td><b>${s.full_name}</b></td>
           <td>${s.gender || '-'}</td>
           <td><span class="status-pill resolved">${classMap[s.class_id] || 'غير محدد'}</span></td>
           <td>${s.birth_date || '-'}</td>
-          <td>${isExited ? `<span style="color:#dc2626; font-weight:bold;">مغادر (${s.exit_reason || ''})</span>` : '<span style="color:#16a34a;">مستمر</span>'}</td>
           <td>
             <button class="action-btn" onclick="openEditModal('${s.id}')" title="تعديل">✏️</button>
-            <button class="action-btn" onclick="openDeleteModal('${s.id}')" title="شطب/حذف" style="color:#dc2626;">🗑️</button>
+            <button class="action-btn" onclick="openDeleteModal('${s.id}')" title="حذف" style="color:#dc2626;">🗑️</button>
           </td>
         </tr>
       `;
@@ -287,13 +283,13 @@ async function saveStudent() {
     return;
   }
 
-  const payload = { full_name, class_id, gender, national_id, birth_date, status: 'مستمر' };
+  const payload = { full_name, class_id, gender, national_id, birth_date, source: 'manual', enrollment_date: new Date().toISOString().split('T')[0] };
 
   if (id) {
+    delete payload.source;
+    delete payload.enrollment_date;
     await db.from("students").update(payload).eq("id", id);
   } else {
-    payload.source = 'manual';
-    payload.enrollment_date = new Date().toISOString().split('T')[0];
     await db.from("students").insert([payload]);
   }
 
@@ -301,7 +297,6 @@ async function saveStudent() {
   loadStudents();
 }
 
-// --- التعامل مع نافذة سبب الشطب والحذف ---
 function openDeleteModal(id) {
   document.getElementById("deleteStudentId").value = id;
   document.getElementById("deleteReason").value = "تغيير مؤسسة";
@@ -320,36 +315,14 @@ function toggleOtherReason() {
 
 async function confirmDeleteStudent() {
   const id = document.getElementById("deleteStudentId").value;
-  const reasonType = document.getElementById("deleteReason").value;
-  let finalReason = reasonType;
-
-  if (reasonType === "أخرى") {
-    finalReason = document.getElementById("customReason").value.trim() || "سبب آخر";
-  }
-
-  if (reasonType === "حذف نهائي") {
-    if (confirm("هل أنت متأكد من الحذف النهائي للتلميذ من قاعدة البيانات؟")) {
-      await db.from("students").delete().eq("id", id);
-    }
-  } else {
-    await db.from("students").update({
-      status: 'مغادر',
-      exit_reason: finalReason,
-      exit_date: new Date().toISOString().split('T')[0]
-    }).eq("id", id);
-  }
-
+  await db.from("students").delete().eq("id", id);
   closeDeleteModal();
   loadStudents();
 }
 
-// --- طباعة تقرير حركة سبتمبر PDF ---
 async function exportSeptemberReportPDF() {
   const classMap = {};
   allClasses.forEach(c => classMap[c.id] = c.name);
-
-  const arrived = allStudents.filter(s => s.source === 'manual' || s.enrollment_date);
-  const left = allStudents.filter(s => s.status === 'مغادر');
 
   const element = document.createElement('div');
   element.style.padding = '20px';
@@ -357,21 +330,28 @@ async function exportSeptemberReportPDF() {
   element.style.fontFamily = 'Arial, sans-serif';
   
   element.innerHTML = `
-    <h2 style="text-align:center;">تقرير حركة التلاميذ لشهر سبتمبر</h2>
-    <hr>
-    <h3>أولاً: الوافدون (الجدد)</h3>
-    <table border="1" style="width:100%; border-collapse:collapse; text-align:right; margin-bottom:20px;">
-      <thead><tr style="background:#f3f4f6;"><th>اللقب والاسم</th><th>القسم</th><th>تاريخ التسجيل</th></tr></thead>
-      <tbody>
-        ${arrived.length ? arrived.map(s => `<tr><td>${s.full_name}</td><td>${classMap[s.class_id] || '-'}</td><td>${s.enrollment_date || '-'}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;">لا يوجد وافدون</td></tr>'}
-      </tbody>
-    </table>
-
-    <h3>ثانياً: المغادرون (المشطوبون)</h3>
+    <h2 style="text-align:center;">قائمة التلاميذ الإجمالية — حركة سبتمبر</h2>
+    <hr style="margin-bottom:20px;">
     <table border="1" style="width:100%; border-collapse:collapse; text-align:right;">
-      <thead><tr style="background:#f3f4f6;"><th>اللقب والاسم</th><th>القسم</th><th>سبب المغادرة</th></tr></thead>
+      <thead>
+        <tr style="background:#f3f4f6;">
+          <th style="padding:8px;">رقم التعريف</th>
+          <th style="padding:8px;">الاسم واللقب</th>
+          <th style="padding:8px;">الجنس</th>
+          <th style="padding:8px;">القسم</th>
+          <th style="padding:8px;">تاريخ الازدياد</th>
+        </tr>
+      </thead>
       <tbody>
-        ${left.length ? left.map(s => `<tr><td>${s.full_name}</td><td>${classMap[s.class_id] || '-'}</td><td>${s.exit_reason || '-'}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;">لا يوجد مغادرون</td></tr>'}
+        ${allStudents.map(s => `
+          <tr>
+            <td style="padding:6px;">${s.national_id || '-'}</td>
+            <td style="padding:6px;"><b>${s.full_name}</b></td>
+            <td style="padding:6px;">${s.gender || '-'}</td>
+            <td style="padding:6px;">${classMap[s.class_id] || '-'}</td>
+            <td style="padding:6px;">${s.birth_date || '-'}</td>
+          </tr>
+        `).join('')}
       </tbody>
     </table>
   `;
