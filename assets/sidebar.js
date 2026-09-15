@@ -1,4 +1,4 @@
-// ===== تسجيل الـ Service Worker وربط PWA Manifest =====
+// ===== 1. تسجيل الـ Service Worker وربط PWA Manifest =====
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration failed:', err));
@@ -12,7 +12,7 @@ if (!document.querySelector('link[rel="manifest"]')) {
   document.head.appendChild(link);
 }
 
-// ===== التقاط حدث تثبيت التطبيق (PWA Install Prompt) =====
+// ===== 2. التقاط حدث تثبيت التطبيق (PWA Install Prompt) =====
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
@@ -32,13 +32,13 @@ async function installPWA() {
   deferredPrompt = null;
 }
 
-// ===== القائمة الجانبية الموحّدة =====
+// ===== 3. القائمة الجانبية الموحّدة =====
 const NAV_ITEMS = [
-  { key: "admin",     href: "admin.html",     icon: "layout-dashboard", label: "الرئيسية",       roles: ["admin", "supervisor"] },
+  { key: "admin",     href: "admin.html",     icon: "layout-dashboard", label: "الرئيسية",        roles: ["admin", "supervisor"] },
   { key: "students",  href: "students.html",  icon: "users",            label: "التلاميذ",        roles: ["admin"] },
   { key: "import",    href: "import.html",    icon: "upload",           label: "استيراد التلاميذ", roles: ["admin"] },
   { key: "teachers",  href: "teachers.html",  icon: "user-round",       label: "الأساتذة",        roles: ["admin"] },
-  { key: "timetable", href: "timetable.html", icon: "calendar-days",    label: "استعمال الزمن",   roles: ["admin"] },
+  { key: "timetable", href: "timetable.html", icon: "calendar-days",   label: "استعمال الزمن",   roles: ["admin"] },
   { key: "duty",      href: "duty.html",      icon: "shield-check",     label: "جدول المشرفين",    roles: ["admin", "supervisor"] },
   { key: "coverage",  href: "coverage.html",  icon: "refresh-cw",       label: "المداومة",        roles: ["admin", "supervisor"] },
   { key: "reports",   href: "reports.html",   icon: "bar-chart-3",      label: "التقارير",        roles: ["admin", "supervisor"] },
@@ -111,6 +111,12 @@ function renderSidebar(activeKey, role) {
 
   if (localStorage.getItem("sidebarCollapsed") === "1") {
     document.querySelector(".app-shell")?.classList.add("sidebar-collapsed");
+  }
+
+  // إظهار زر التثبيت إذا تم التقاط الحدث قبل بناء القائمة
+  if (deferredPrompt) {
+    const pwaBtn = document.getElementById('pwaInstallBtn');
+    if (pwaBtn) pwaBtn.style.display = 'flex';
   }
 
   applyTheme();
