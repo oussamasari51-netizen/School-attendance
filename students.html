@@ -3,134 +3,112 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>قائمة التلاميذ — برنامج الناظر</title>
+<title>إدارة التلاميذ — نظام الغيابات</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  .filter-bar { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; align-items:center; }
+  .filter-bar select, .filter-bar input { padding:8px 12px; border:1px solid var(--line); border-radius:8px; font-size:13.5px; }
+  table.rtable { width:100%; border-collapse:collapse; font-size:13.5px; background:var(--surface); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); }
+  table.rtable th, table.rtable td { padding:10px 12px; text-align:right; border-bottom:1px solid var(--paper); }
+  table.rtable th { color:var(--ink-soft); font-size:12.5px; background:var(--primary-light); }
+  .action-btn { border:none; background:none; cursor:pointer; font-size:15px; padding:4px 6px; }
+</style>
 </head>
 <body>
-<div class="app-shell">
-  <div id="sidebarMount"></div>
-  <div class="main-area">
-    <div class="topbar">
-      <div>
-        <div class="t-title">قائمة التلاميذ</div>
-        <div class="t-sub">عرض وتعديل بيانات التلاميذ بحسب القسم</div>
-      </div>
-      <div class="user-chip">
-        <span id="userName">...</span>
-        <button class="btn-logout" onclick="logout()">خروج</button>
-      </div>
-    </div>
-    
-    <div class="page">
-      <div class="card" style="margin-bottom:14px; padding:12px 16px;">
-        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-          <div class="field" style="margin:0; min-width:180px;">
-            <label style="font-size:11px;">القسم</label>
-            <select id="classSelect" onchange="loadStudents()"><option value="">اختر القسم...</option></select>
-          </div>
-          <div class="field" style="margin:0; flex:1; min-width:180px;">
-            <label style="font-size:11px;">بحث باسم التلميذ</label>
-            <input type="text" id="searchInput" placeholder="ابحث..." oninput="filterTable()">
-          </div>
-          <button class="btn-secondary" onclick="exportMovementReportPDF()" style="margin-top:16px;">📄 حركة سبتمبر (PDF)</button>
-          <button class="btn-primary" onclick="openModal()" style="margin-top:16px;">➕ إضافة تلميذ</button>
-        </div>
-      </div>
 
-      <div class="card" style="padding:0; overflow:hidden;">
-        <table class="rtable" id="studentsTable">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>رقم التعريف الوطني</th>
-              <th>اللقب والاسم</th>
-              <th>الجنس</th>
-              <th>تاريخ الميلاد</th>
-              <th>القسم</th>
-              <th>الحالة</th>
-              <th style="width:100px;">إجراءات</th>
-            </tr>
-          </thead>
-          <tbody id="tableBody">
-            <tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-sub);">اختر قسمًا لتعريف التلاميذ...</td></tr>
-          </tbody>
-        </table>
-      </div>
+<div class="app-shell">
+<div id="sidebarMount"></div>
+<div class="main-area">
+
+<div class="topbar">
+  <div class="brand">
+    <div class="icon">👥</div>
+    <div>
+      <h1>إدارة قائمة التلاميذ</h1>
+      <div class="meta">عرض، بحث، وإضافة التلاميذ والأقسام</div>
     </div>
   </div>
+  <div class="user-chip">
+    <span id="userName">...</span>
+    <button onclick="logout()">خروج</button>
+  </div>
 </div>
+
+<div class="page">
+
+  <div class="filter-bar">
+    <label><b>القسم:</b></label>
+    <select id="classFilter">
+      <option value="">جميع الأقسام</option>
+    </select>
+
+    <label><b>البحث:</b></label>
+    <input type="text" id="searchInput" placeholder="ابحث باسم التلميذ...">
+
+    <div style="margin-right:auto;">
+      <button class="btn-primary" onclick="openAddModal()">➕ إضافة تلميذ جديد</button>
+    </div>
+  </div>
+
+  <div id="loadingText" class="loading-text">جاري تحميل قائمة التلاميذ...</div>
+
+  <table class="rtable" id="studentsTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>رقم التعريف</th>
+        <th>الاسم واللقب</th>
+        <th>الجنس</th>
+        <th>القسم</th>
+        <th>تاريخ الازدياد</th>
+        <th>إجراءات</th>
+      </tr>
+    </thead>
+    <tbody id="studentsBody"></tbody>
+  </table>
+
+</div>
+
+</div><!-- /main-area -->
+</div><!-- /app-shell -->
 
 <!-- Modal إضافة / تعديل تلميذ -->
-<div class="modal-backdrop" id="studentModal" style="display:none;">
+<div id="studentModal" class="modal-backdrop" style="display:none;">
   <div class="modal-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-      <h3 id="modalTitle" style="margin:0; font-size:16px;">إضافة تلميذ</h3>
-      <button onclick="closeModal()" style="background:none; border:none; cursor:pointer; font-size:18px;">✕</button>
-    </div>
-    <form id="studentForm" onsubmit="saveStudent(event)">
-      <input type="hidden" id="studentId">
-      <div class="field">
-        <label>اللقب والاسم *</label>
-        <input type="text" id="fullNameInput" required placeholder="مثال: بن علي محمد">
-      </div>
-      <div class="field">
-        <label>رقم التعريف الوطني (18 رقم)</label>
-        <input type="text" id="nationalIdInput" placeholder="اختياري">
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-        <div class="field">
-          <label>الجنس</label>
-          <select id="genderInput">
-            <option value="ذكر">ذكر</option>
-            <option value="أنثى">أنثى</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>تاريخ الميلاد</label>
-          <input type="date" id="birthDateInput">
-        </div>
-      </div>
-      <div class="field">
-        <label>القسم *</label>
-        <select id="modalClassSelect" required></select>
-      </div>
-      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
-        <button type="button" class="btn-secondary" onclick="closeModal()">إلغاء</button>
-        <button type="submit" class="btn-primary">حفظ</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- Modal خيارات الحذف والشطب -->
-<div class="modal-backdrop" id="deleteModal" style="display:none;">
-  <div class="modal-card">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <h3 style="margin:0; font-size:16px; color:#dc2626;">شطب / حذف تلميذ</h3>
-      <button onclick="closeDeleteModal()" style="background:none; border:none; cursor:pointer; font-size:18px;">✕</button>
-    </div>
-    <input type="hidden" id="deleteStudentId">
+    <h2 id="modalTitle">إضافة تلميذ جديد</h2>
+    <input type="hidden" id="editStudentId">
     
-    <div class="field">
-      <label>سبب الشطب / المغادرة:</label>
-      <select id="deleteReasonSelect" onchange="toggleCustomReason()">
-        <option value="تغيير مؤسسة">تغيير مؤسسة (تحويل)</option>
-        <option value="التخلي عن الدراسة">التخلي عن الدراسة (انقطاع)</option>
-        <option value="حذف نهائي">حذف نهائي من قاعدة البيانات</option>
-        <option value="أخرى">أخرى (حدد السبب)</option>
+    <div style="margin-top:12px;">
+      <label>الاسم واللقب:</label>
+      <input type="text" id="mFullName" class="input-field" placeholder="مثال: محمد بلقاسم">
+    </div>
+
+    <div style="margin-top:10px;">
+      <label>القسم:</label>
+      <select id="mClassId" class="input-field"></select>
+    </div>
+
+    <div style="margin-top:10px;">
+      <label>الجنس:</label>
+      <select id="mGender" class="input-field">
+        <option value="ذكر">ذكر</option>
+        <option value="أنثى">أنثى</option>
       </select>
     </div>
 
-    <div class="field" id="customReasonBox" style="display:none;">
-      <label>أدخل السبب بالتفصيل:</label>
-      <input type="text" id="customReasonInput" placeholder="أكتب السبب هنا...">
+    <div style="margin-top:10px;">
+      <label>رقم التعريف الوطني:</label>
+      <input type="text" id="mNationalId" class="input-field" placeholder="اختياري">
     </div>
 
-    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
-      <button type="button" class="btn-secondary" onclick="closeDeleteModal()">إلغاء</button>
-      <button type="button" class="btn-primary" style="background:#dc2626;" onclick="confirmDeleteStudent()">تأكيد الشطب</button>
+    <div style="margin-top:10px;">
+      <label>تاريخ الازدياد:</label>
+      <input type="date" id="mBirthDate" class="input-field">
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:18px;">
+      <button class="btn-primary" onclick="saveStudent()">حفظ</button>
+      <button class="btn-secondary" onclick="closeModal()">إلغاء</button>
     </div>
   </div>
 </div>
@@ -143,206 +121,156 @@ let allClasses = [];
 let allStudents = [];
 
 async function init() {
-  // تفعيل الصلاحيات لكل من admin و supervisor
   profile = await requireSession(["admin", "supervisor"]);
   if (!profile) return;
   document.getElementById("userName").textContent = profile.full_name;
-  
+
+  // رسم القائمة الجانبية مع تحديد الخيار الحالي
   renderSidebar("students", profile.role);
+
   await loadClasses();
+  await loadStudents();
 }
 
 async function loadClasses() {
-  const { data } = await db.from("classes").select("*").order("name");
+  const { data, error } = await db.from("classes").select("id, name").order("name");
+  if (error) {
+    console.error("Error loading classes:", error);
+    return;
+  }
   allClasses = data || [];
+
+  const filterSelect = document.getElementById("classFilter");
+  const modalSelect = document.getElementById("mClassId");
   
-  const sel = document.getElementById("classSelect");
-  const mSel = document.getElementById("modalClassSelect");
-  sel.innerHTML = '<option value="">اختر القسم...</option>';
-  mSel.innerHTML = '<option value="">اختر القسم...</option>';
-  
+  filterSelect.innerHTML = '<option value="">جميع الأقسام</option>';
+  modalSelect.innerHTML = '';
+
   allClasses.forEach(c => {
-    sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
-    mSel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+    filterSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+    modalSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
   });
 }
 
 async function loadStudents() {
-  const classId = document.getElementById("classSelect").value;
-  if (!classId) {
-    document.getElementById("tableBody").innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-sub);">اختر قسمًا لتعريف التلاميذ...</td></tr>';
+  document.getElementById("loadingText").style.display = "block";
+  document.getElementById("studentsTable").style.display = "none";
+
+  const { data, error } = await db
+    .from("students")
+    .select("id, full_name, gender, birth_date, national_id, class_id")
+    .order("full_name");
+
+  if (error) {
+    console.error("Error loading students:", error);
+    document.getElementById("loadingText").textContent = "حدث خطأ أثناء تحميل البيانات.";
     return;
   }
-  
-  const { data } = await db.from("students").select("*").eq("class_id", classId).order("full_name");
+
   allStudents = data || [];
-  renderTable(allStudents);
+  renderTable();
 }
 
-function renderTable(list) {
-  const tbody = document.getElementById("tableBody");
-  if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-sub);">لا يوجد تلاميذ في هذا القسم</td></tr>';
-    return;
+function renderTable() {
+  const selectedClass = document.getElementById("classFilter").value;
+  const search = document.getElementById("searchInput").value.trim().toLowerCase();
+
+  const classMap = {};
+  allClasses.forEach(c => classMap[c.id] = c.name);
+
+  const filtered = allStudents.filter(s => {
+    const matchClass = !selectedClass || s.class_id === selectedClass;
+    const matchSearch = !search || (s.full_name && s.full_name.toLowerCase().includes(search));
+    return matchClass && matchSearch;
+  });
+
+  const body = document.getElementById("studentsBody");
+  body.innerHTML = "";
+
+  if (filtered.length === 0) {
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--ink-soft);">لا يوجد تلاميذ للعرض.</td></tr>`;
+  } else {
+    filtered.forEach(s => {
+      body.innerHTML += `
+        <tr>
+          <td>${s.national_id || '-'}</td>
+          <td><b>${s.full_name}</b></td>
+          <td>${s.gender || '-'}</td>
+          <td><span class="status-pill resolved">${classMap[s.class_id] || 'غير محدد'}</span></td>
+          <td>${s.birth_date || '-'}</td>
+          <td>
+            <button class="action-btn" onclick="openEditModal('${s.id}')" title="تعديل">✏️</button>
+            <button class="action-btn" onclick="deleteStudent('${s.id}')" title="حذف">🗑️</button>
+          </td>
+        </tr>
+      `;
+    });
   }
-  
-  const classMap = Object.fromEntries(allClasses.map(c => [c.id, c.name]));
-  
-  tbody.innerHTML = list.map((s, i) => {
-    const isExited = s.status === 'مغادر';
-    return `
-      <tr style="${isExited ? 'opacity:0.6; background:rgba(220,38,38,0.05);' : ''}">
-        <td>${i + 1}</td>
-        <td>${s.national_id || '—'}</td>
-        <td><b>${s.full_name}</b></td>
-        <td>${s.gender || '—'}</td>
-        <td>${s.birth_date || '—'}</td>
-        <td>${classMap[s.class_id] || '—'}</td>
-        <td>${isExited ? `<span style="color:#dc2626; font-weight:bold;">مغادر (${s.exit_reason || ''})</span>` : '<span style="color:#16a34a;">مستمر</span>'}</td>
-        <td>
-          <button class="btn-icon" onclick="editStudent('${s.id}')" title="تعديل">✏️</button>
-          <button class="btn-icon" onclick="openDeleteModal('${s.id}')" title="شطب/حذف" style="color:#dc2626;">🗑️</button>
-        </td>
-      </tr>
-    `;
-  }).join('');
+
+  document.getElementById("loadingText").style.display = "none";
+  document.getElementById("studentsTable").style.display = "table";
 }
 
-function filterTable() {
-  const q = document.getElementById("searchInput").value.trim().toLowerCase();
-  if (!q) { renderTable(allStudents); return; }
-  const filtered = allStudents.filter(s => s.full_name.toLowerCase().includes(q) || (s.national_id && s.national_id.includes(q)));
-  renderTable(filtered);
+document.getElementById("classFilter").addEventListener("change", renderTable);
+document.getElementById("searchInput").addEventListener("input", renderTable);
+
+function openAddModal() {
+  document.getElementById("modalTitle").textContent = "إضافة تلميذ جديد";
+  document.getElementById("editStudentId").value = "";
+  document.getElementById("mFullName").value = "";
+  document.getElementById("mNationalId").value = "";
+  document.getElementById("mBirthDate").value = "";
+  document.getElementById("studentModal").style.display = "flex";
 }
 
-function openModal(id = null) {
-  document.getElementById("studentId").value = id || '';
-  document.getElementById("modalTitle").textContent = id ? 'تعديل تلميذ' : 'إضافة تلميذ';
-  if (!id) {
-    document.getElementById("studentForm").reset();
-    document.getElementById("modalClassSelect").value = document.getElementById("classSelect").value;
-  }
-  document.getElementById("studentModal").style.display = 'flex';
-}
-
-function closeModal() { document.getElementById("studentModal").style.display = 'none'; }
-
-function editStudent(id) {
+function openEditModal(id) {
   const s = allStudents.find(x => x.id === id);
   if (!s) return;
-  document.getElementById("studentId").value = s.id;
-  document.getElementById("fullNameInput").value = s.fullName || s.full_name;
-  document.getElementById("nationalIdInput").value = s.national_id || '';
-  document.getElementById("genderInput").value = s.gender || 'ذكر';
-  document.getElementById("birthDateInput").value = s.birth_date || '';
-  document.getElementById("modalClassSelect").value = s.class_id;
-  document.getElementById("modalTitle").textContent = 'تعديل تلميذ';
-  document.getElementById("studentModal").style.display = 'flex';
+  document.getElementById("modalTitle").textContent = "تعديل بيانات تلميذ";
+  document.getElementById("editStudentId").value = s.id;
+  document.getElementById("mFullName").value = s.full_name;
+  document.getElementById("mClassId").value = s.class_id;
+  document.getElementById("mGender").value = s.gender || "ذكر";
+  document.getElementById("mNationalId").value = s.national_id || "";
+  document.getElementById("mBirthDate").value = s.birth_date || "";
+  document.getElementById("studentModal").style.display = "flex";
 }
 
-async function saveStudent(e) {
-  e.preventDefault();
-  const id = document.getElementById("studentId").value;
-  const payload = {
-    full_name: document.getElementById("fullNameInput").value.trim(),
-    national_id: document.getElementById("nationalIdInput").value.trim() || null,
-    gender: document.getElementById("genderInput").value,
-    birth_date: document.getElementById("birthDateInput").value || null,
-    class_id: document.getElementById("modalClassSelect").value,
-    status: 'مستمر'
-  };
-  
+function closeModal() {
+  document.getElementById("studentModal").style.display = "none";
+}
+
+async function saveStudent() {
+  const id = document.getElementById("editStudentId").value;
+  const full_name = document.getElementById("mFullName").value.trim();
+  const class_id = document.getElementById("mClassId").value;
+  const gender = document.getElementById("mGender").value;
+  const national_id = document.getElementById("mNationalId").value.trim() || null;
+  const birth_date = document.getElementById("mBirthDate").value || null;
+
+  if (!full_name || !class_id) {
+    alert("يرجى ملء الاسم واللقب واختيار القسم.");
+    return;
+  }
+
+  const payload = { full_name, class_id, gender, national_id, birth_date, source: 'manual', enrollment_date: new Date().toISOString().split('T')[0] };
+
   if (id) {
+    delete payload.source;
+    delete payload.enrollment_date;
     await db.from("students").update(payload).eq("id", id);
   } else {
-    payload.source = 'manual';
-    payload.enrollment_date = new Date().toISOString().split('T')[0];
     await db.from("students").insert([payload]);
   }
-  
+
   closeModal();
   loadStudents();
 }
 
-// --- إدارة الشطب والحذف ---
-function openDeleteModal(id) {
-  document.getElementById("deleteStudentId").value = id;
-  document.getElementById("deleteReasonSelect").value = "تغيير مؤسسة";
-  toggleCustomReason();
-  document.getElementById("deleteModal").style.display = "flex";
-}
-
-function closeDeleteModal() { document.getElementById("deleteModal").style.display = "none"; }
-
-function toggleCustomReason() {
-  const val = document.getElementById("deleteReasonSelect").value;
-  document.getElementById("customReasonBox").style.display = (val === "أخرى") ? "block" : "none";
-}
-
-async function confirmDeleteStudent() {
-  const id = document.getElementById("deleteStudentId").value;
-  const reasonType = document.getElementById("deleteReasonSelect").value;
-  let finalReason = reasonType;
-
-  if (reasonType === "أخرى") {
-    finalReason = document.getElementById("customReasonInput").value.trim() || "سبب آخر";
-  }
-
-  if (reasonType === "حذف نهائي") {
-    if (confirm("هل أنت متأكد من الحذف النهائي للتلميذ من قاعدة البيانات؟")) {
-      await db.from("students").delete().eq("id", id);
-    }
-  } else {
-    await db.from("students").update({
-      status: 'مغادر',
-      exit_reason: finalReason,
-      exit_date: new Date().toISOString().split('T')[0]
-    }).eq("id", id);
-  }
-
-  closeDeleteModal();
+async function deleteStudent(id) {
+  if (!confirm("هل أنت متأكد من حذف هذا التلميذ؟")) return;
+  await db.from("students").delete().eq("id", id);
   loadStudents();
-}
-
-// --- طباعة حركة سبتمبر ---
-async function exportMovementReportPDF() {
-  const { data: students } = await db.from("students").select("*");
-  const classMap = Object.fromEntries(allClasses.map(c => [c.id, c.name]));
-  
-  const arrived = (students || []).filter(s => s.source === 'manual' || s.enrollment_date);
-  const left = (students || []).filter(s => s.status === 'مغادر');
-
-  const element = document.createElement('div');
-  element.style.padding = '20px';
-  element.style.direction = 'rtl';
-  element.style.fontFamily = 'Arial, sans-serif';
-  
-  element.innerHTML = `
-    <h2 style="text-align:center;">تقرير حركة التلاميذ لشهر سبتمبر</h2>
-    <hr>
-    <h3>أولاً: الوافدون (الجدد)</h3>
-    <table border="1" style="width:100%; border-collapse:collapse; text-align:right; margin-bottom:20px;">
-      <thead><tr style="background:#f3f4f6;"><th>اللقب والاسم</th><th>القسم</th><th>تاريخ التسجيل</th></tr></thead>
-      <tbody>
-        ${arrived.length ? arrived.map(s => `<tr><td>${s.full_name}</td><td>${classMap[s.class_id] || '-'}</td><td>${s.enrollment_date || '-'}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;">لا يوجد</td></tr>'}
-      </tbody>
-    </table>
-
-    <h3>ثانياً: المغادرون (المشطوبون)</h3>
-    <table border="1" style="width:100%; border-collapse:collapse; text-align:right;">
-      <thead><tr style="background:#f3f4f6;"><th>اللقب والاسم</th><th>القسم</th><th>سبب المغادرة</th></tr></thead>
-      <tbody>
-        ${left.length ? left.map(s => `<tr><td>${s.full_name}</td><td>${classMap[s.class_id] || '-'}</td><td>${s.exit_reason || '-'}</td></tr>`).join('') : '<tr><td colspan="3" style="text-align:center;">لا يوجد</td></tr>'}
-      </tbody>
-    </table>
-  `;
-
-  html2pdf().set({
-    margin: 10,
-    filename: 'حركة_سبتمبر.pdf',
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  }).from(element).save();
 }
 
 init();
