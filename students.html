@@ -100,7 +100,7 @@
   }
 
   .action-btn {
-    padding: 5px 10px;
+    padding: 6px 12px;
     font-size: 12px;
     border-radius: 5px;
     border: none;
@@ -111,6 +111,7 @@
   .btn-del { background: #e74c3c; color: #fff; }
   .btn-reactivate { background: #27ae60; color: #fff; }
   .btn-add { background: #27ae60; color: #fff; font-weight: bold; }
+  .btn-print { background: #3498db; color: #fff; font-weight: bold; }
 
   /* النوافذ المنبثقة Modals */
   .modal-backdrop {
@@ -134,8 +135,10 @@
     border-radius: 12px;
     padding: 20px;
     width: 100%;
-    max-width: 400px;
+    max-width: 450px;
     box-sizing: border-box;
+    max-height: 90vh;
+    overflow-y: auto;
   }
 
   .field-group {
@@ -157,6 +160,43 @@
     color: #fff;
     border-radius: 6px;
     box-sizing: border-box;
+  }
+
+  /* تنسيق الطباعة الخاص بتقرير الحركة الشهري */
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    #printReportArea, #printReportArea * {
+      visibility: visible;
+    }
+    #printReportArea {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      color: #000 !important;
+      background: #fff !important;
+      padding: 0;
+    }
+    .no-print {
+      display: none !important;
+    }
+    table.report-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    table.report-table th, table.report-table td {
+      border: 1px solid #333;
+      padding: 6px 8px;
+      font-size: 12px;
+      text-align: right;
+      color: #000;
+    }
+    table.report-table th {
+      background-color: #f2f2f2;
+    }
   }
 </style>
 </head>
@@ -184,6 +224,11 @@
 
     <!-- Page Content -->
     <div class="page-container">
+
+      <!-- زر الطباعة الشهري في الأعلى -->
+      <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+        <button class="action-btn btn-print" onclick="openMonthlyReportModal()">📊 طباعة تقرير الحركة الشهري (الوافدون والمغادرون)</button>
+      </div>
 
       <!-- 1. شريط التحكم بالأقسام -->
       <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.1);">
@@ -296,6 +341,68 @@
   </div>
 </div>
 
+<!-- Modal 3: نافذة التقرير الشهري والطباعة -->
+<div class="modal-backdrop" id="reportModal">
+  <div class="modal-sheet" style="max-width: 650px;">
+    <div class="no-print">
+      <h3 style="margin-top:0; color:#3498db; font-size:16px;">📄 جدول حركة التلاميذ الشهري</h3>
+      
+      <div style="display:flex; gap:10px; margin-bottom:15px; align-items:center;">
+        <label style="font-size:12px; color:#ccc;">اختر الشهر:</label>
+        <input type="month" id="reportMonth" style="padding:6px; background:#111; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:6px;">
+        <button class="action-btn btn-print" onclick="generateMonthlyReport()">عرض التقرير</button>
+      </div>
+    </div>
+
+    <!-- منطقة المعاينة والطباعة -->
+    <div id="printReportArea">
+      <div style="text-align:center; margin-bottom:15px; color:#000;">
+        <h3 style="margin:0; font-size:16px;">جدول حركة التلاميذ (الوافدون والمغادرون)</h3>
+        <p style="margin:3px 0; font-size:12px;" id="reportPeriodTitle"></p>
+      </div>
+
+      <!-- الوافدون الجدد -->
+      <h4 style="margin:10px 0 5px; font-size:13px; color:#27ae60;">أولاً: التلاميذ الوافدون الجدد</h4>
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>الاسم واللقب</th>
+            <th>القسم</th>
+            <th>الجنس</th>
+            <th>تاريخ الالتحاق</th>
+          </tr>
+        </thead>
+        <tbody id="arrivalsReportBody">
+          <tr><td colspan="5" style="text-align:center;">اختر الشهر واضغط عرض.</td></tr>
+        </tbody>
+      </table>
+
+      <!-- المغادرون والمنقطعون -->
+      <h4 style="margin:15px 0 5px; font-size:13px; color:#e74c3c;">ثانياً: التلاميذ المغادرون والمنقطعون</h4>
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>الاسم واللقب</th>
+            <th>القسم</th>
+            <th>سبب الخروج</th>
+            <th>تاريخ الخروج</th>
+          </tr>
+        </thead>
+        <tbody id="departuresReportBody">
+          <tr><td colspan="5" style="text-align:center;">اختر الشهر واضغط عرض.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="no-print" style="display:flex; gap:8px; margin-top:15px;">
+      <button class="action-btn btn-print" style="flex:1; padding:9px;" onclick="window.print()">🖨️ طباعة التقرير</button>
+      <button class="action-btn" style="background:#555; color:#fff;" onclick="closeModal('reportModal')">إغلاق</button>
+    </div>
+  </div>
+</div>
+
 <script src="assets/config.js"></script>
 <script src="assets/sidebar.js"></script>
 <script>renderSidebar("students");</script>
@@ -328,7 +435,6 @@ async function loadClasses() {
   const grid = document.getElementById("classGrid");
   grid.innerHTML = "";
 
-  // تعبئة قائمة الأقسام في النموذج المنبثق
   const classSelectInput = document.getElementById("classSelectInput");
   classSelectInput.innerHTML = "";
   allClasses.forEach(c => {
@@ -369,7 +475,7 @@ async function selectClass(cls) {
   document.getElementById("studentSection").scrollIntoView({ behavior: "smooth" });
 }
 
-// 3. تحميل التلاميذ مع إمكانية عرض المنسحبين
+// 3. تحميل التلاميذ
 async function loadStudents() {
   if (!selectedClass) return;
   const list = document.getElementById("studentList");
@@ -419,7 +525,7 @@ async function loadStudents() {
   });
 }
 
-// 4. نافذة وتعديل/إضافة تلميذ (شاملة خيار تغيير القسم)
+// 4. نافذة وتعديل/إضافة تلميذ
 function openAddStudentModal() {
   document.getElementById("studentId").value = "";
   document.getElementById("studentForm").reset();
@@ -434,7 +540,7 @@ function openEditStudentModal(id) {
 
   document.getElementById("studentId").value = s.id;
   document.getElementById("fullNameInput").value = s.full_name;
-  document.getElementById("classSelectInput").value = s.class_id; // يمكنك هنا تغيير قسمه
+  document.getElementById("classSelectInput").value = s.class_id;
   document.getElementById("nationalIdInput").value = s.national_id || "";
   document.getElementById("genderSelect").value = s.gender || "ذكر";
 
@@ -452,7 +558,8 @@ document.getElementById("studentForm").addEventListener("submit", async (e) => {
     class_id: selectedClassId,
     national_id: document.getElementById("nationalIdInput").value.trim() || null,
     gender: document.getElementById("genderSelect").value,
-    active: true
+    active: true,
+    enrollment_date: id ? undefined : todayISO()
   };
 
   let error = null;
@@ -471,7 +578,7 @@ document.getElementById("studentForm").addEventListener("submit", async (e) => {
   }
 });
 
-// 5. إدارة الحذف وسبب الخروج (Withdrawal Modal)
+// 5. إدارة الحذف وسبب الخروج
 function openWithdrawModal(id) {
   const s = currentStudents.find(item => item.id === id);
   if (!s) return;
@@ -543,6 +650,71 @@ async function deleteClass(e, classId, className) {
   else {
     if (selectedClass && selectedClass.id === classId) selectedClass = null;
     await loadClasses();
+  }
+}
+
+// 8. توليد وطباعة تقرير الحركة الشهري
+function openMonthlyReportModal() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  document.getElementById("reportMonth").value = `${year}-${month}`;
+  
+  document.getElementById("reportModal").classList.add("open");
+  generateMonthlyReport();
+}
+
+async function generateMonthlyReport() {
+  const monthVal = document.getElementById("reportMonth").value;
+  if (!monthVal) return;
+
+  const [year, month] = monthVal.split('-');
+  const startDate = `${year}-${month}-01`;
+  const endDate = `${year}-${month}-31`;
+
+  document.getElementById("reportPeriodTitle").textContent = `لشهر: ${month} / ${year}`;
+
+  // أ) الوافدون الجدد
+  const { data: arrivals } = await db.from("students")
+    .select("*, classes(name)")
+    .gte("enrollment_date", startDate)
+    .lte("enrollment_date", endDate);
+
+  const arrBody = document.getElementById("arrivalsReportBody");
+  if (!arrivals || arrivals.length === 0) {
+    arrBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">لا يوجد وافدون جدد خلال هذا الشهر.</td></tr>`;
+  } else {
+    arrBody.innerHTML = arrivals.map((s, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${s.full_name}</td>
+        <td>${s.classes ? s.classes.name : '-'}</td>
+        <td>${s.gender || '-'}</td>
+        <td>${s.enrollment_date || '-'}</td>
+      </tr>
+    `).join('');
+  }
+
+  // ب) المغادرون والمنقطعون
+  const { data: departures } = await db.from("students")
+    .select("*, classes(name)")
+    .eq("active", false)
+    .gte("withdrawal_date", startDate)
+    .lte("withdrawal_date", endDate);
+
+  const depBody = document.getElementById("departuresReportBody");
+  if (!departures || departures.length === 0) {
+    depBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">لا يوجد مغادرون أو منقطعون خلال هذا الشهر.</td></tr>`;
+  } else {
+    depBody.innerHTML = departures.map((s, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${s.full_name}</td>
+        <td>${s.classes ? s.classes.name : '-'}</td>
+        <td>${s.withdrawal_reason || '-'}</td>
+        <td>${s.withdrawal_date || '-'}</td>
+      </tr>
+    `).join('');
   }
 }
 
