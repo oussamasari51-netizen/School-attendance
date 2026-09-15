@@ -8,96 +8,154 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-  /* تحسينات التصميم والاستجابة للهواتف */
-  .students-layout {
+  .page-container {
+    max-width: 850px;
+    margin: 0 auto;
+    padding: 15px;
+  }
+
+  /* بطاقات الأقسام */
+  .classes-grid {
     display: grid;
-    grid-template-columns: 320px 1fr;
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+    margin-top: 15px;
   }
 
-  .card-style {
+  .class-card {
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 14px 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
   }
 
-  .form-control {
-    width: 100%;
-    padding: 9px 12px;
-    margin-bottom: 12px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #fff;
-    border-radius: 6px;
-    box-sizing: border-box;
-    font-size: 13px;
-  }
-
-  .form-control:focus {
-    outline: none;
+  .class-card:hover, .class-card.active {
+    background: rgba(52, 152, 219, 0.15);
     border-color: #3498db;
+    transform: translateY(-2px);
   }
 
-  select.form-control {
-    background: #222;
-  }
-
-  .table-responsive {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .class-badge {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 12px;
+  .class-card .cname {
+    font-size: 16px;
+    font-weight: bold;
     color: #fff;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
   }
 
-  .class-badge button {
+  .class-card .csub {
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 4px;
+  }
+
+  .class-card .del-btn {
+    position: absolute;
+    top: 4px;
+    left: 4px;
     background: none;
     border: none;
     color: #e74c3c;
+    font-size: 12px;
     cursor: pointer;
-    font-size: 14px;
+    padding: 4px;
+    display: none;
+  }
+
+  .class-card:hover .del-btn {
+    display: block;
+  }
+
+  /* أسطر التلاميذ */
+  .student-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 15px;
+  }
+
+  .student-row {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .student-row .sname {
     font-weight: bold;
-    padding: 2px 4px;
-    line-height: 1;
-    border-radius: 50%;
+    color: #fff;
+    font-size: 14px;
   }
 
-  .class-badge button:hover {
-    background: rgba(231, 76, 60, 0.2);
+  .student-row .smeta {
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 2px;
   }
 
-  /* استجابة الشاشات الصغيرة (الهواتف) */
-  @media (max-width: 900px) {
-    .students-layout {
-      grid-template-columns: 1fr;
-    }
-    
-    .topbar-actions {
-      flex-direction: column;
-      align-items: stretch !important;
-      width: 100%;
-    }
+  .action-btn {
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+  }
 
-    .filter-group {
-      flex-direction: column;
-      width: 100%;
-    }
+  .btn-edit { background: #f39c12; color: #fff; }
+  .btn-del { background: #e74c3c; color: #fff; }
+  .btn-add { background: #27ae60; color: #fff; font-weight: bold; }
 
-    .filter-group select, 
-    .filter-group input {
-      width: 100% !important;
-    }
+  /* النوافذ المنبثقة Modals */
+  .modal-backdrop {
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+    padding: 15px;
+  }
+
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .modal-sheet {
+    background: #1e272e;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 20px;
+    width: 100%;
+    max-width: 400px;
+    box-sizing: border-box;
+  }
+
+  .field-group {
+    margin-bottom: 12px;
+  }
+
+  .field-group label {
+    display: block;
+    font-size: 12px;
+    color: #ccc;
+    margin-bottom: 5px;
+  }
+
+  .field-group input, .field-group select {
+    width: 100%;
+    padding: 9px;
+    background: #111;
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    border-radius: 6px;
+    box-sizing: border-box;
   }
 </style>
 </head>
@@ -114,7 +172,7 @@
         <div class="icon">👥</div>
         <div>
           <h1>إدارة الأقسام والتلاميذ</h1>
-          <div class="meta">إنشاء الأقسام وإدارتها وحذفها وإضافة التلاميذ</div>
+          <div class="meta">تحديد القسم وتسيير التلاميذ بشكل مباشر</div>
         </div>
       </div>
       <div class="user-chip">
@@ -124,112 +182,79 @@
     </div>
 
     <!-- Page Content -->
-    <div class="page" style="padding: 20px;">
+    <div class="page-container">
 
-      <!-- 1. لوحة إدارة الأقسام (إضافة وحذف) -->
-      <div class="card-style" style="margin-bottom: 20px;">
-        <div class="topbar-actions" style="display:flex; justify-space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
-          <div>
-            <h3 style="margin:0 0 4px 0; font-size:16px; color:#fff;">🏫 إدارة أقسام المؤسسة</h3>
-            <p class="sub" style="margin:0; font-size:12px; color:#aaa;">اختر السنة الدراسية واضغط على إضافة قسم، أو قم بحذف الأقسام الزائدة.</p>
-          </div>
+      <!-- 1. شريط التحكم بالأقسام -->
+      <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.1);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <h3 style="margin:0; font-size:15px; color:#fff;">🏫 أقسام المؤسسة</h3>
           
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <select id="levelSelect" class="form-control" style="margin-bottom:0; width:auto;">
-              <option value="1">السنة الأولى متوسط (1م)</option>
-              <option value="2">السنة الثانية متوسط (2م)</option>
-              <option value="3">السنة الثالثة متوسط (3م)</option>
-              <option value="4">السنة الرابعة متوسط (4م)</option>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select id="levelSelect" style="padding:6px 10px; background:#222; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:6px; font-size:12px;">
+              <option value="1">1 متوسط</option>
+              <option value="2">2 متوسط</option>
+              <option value="3">3 متوسط</option>
+              <option value="4">4 متوسط</option>
             </select>
-            <button id="addSectionBtn" style="padding:9px 16px; font-size:13px; background:#27ae60; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">
-              ➕ إضافة قسم
-            </button>
+            <button id="addSectionBtn" class="action-btn btn-add">+ إضافة قسم</button>
           </div>
         </div>
 
-        <!-- عرض الأقسام الحالية المضافة مع زر الحذف -->
-        <div style="border-top:1px solid rgba(255,255,255,0.1); padding-top:12px; margin-top:10px;">
-          <div style="font-size:12px; color:#ccc; margin-bottom:8px;">الأقسام المضافة حالياً (<span id="classesCount">0</span>):</div>
-          <div id="classListBadges" style="display:flex; flex-wrap:wrap; gap:8px;">
-            <span style="color:#aaa; font-size:12px;">جاري تحميل الأقسام...</span>
-          </div>
+        <!-- شبكة بطاقات الأقسام -->
+        <div class="classes-grid" id="classGrid">
+          <div style="color:#aaa; font-size:12px; grid-column:1/-1;">جاري التحميل...</div>
         </div>
       </div>
 
-      <!-- 2. الجزء السفلي: إضافة تلميذ + جدول التلاميذ -->
-      <div class="students-layout">
-
-        <!-- نموذج إضافة/تعديل تلميذ -->
-        <div class="card-style" style="height:fit-content;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <h2 style="font-size:15px; margin:0; color:#3498db;" id="formTitle">👤 إضافة تلميذ جديد</h2>
-            <button type="button" id="importBtn" onclick="triggerImport()" style="background:rgba(52, 152, 219, 0.2); border:1px solid #3498db; color:#3498db; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;">📥 استيراد</button>
-            <input type="file" id="excelFileInput" accept=".csv, .xlsx" style="display:none;" onchange="handleFileUpload(event)">
+      <!-- 2. قائمة تلاميذ القسم المحدد -->
+      <div id="studentSection" style="display:none; margin-top:25px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px;">
+          <div>
+            <h3 id="selectedClassTitle" style="margin:0; font-size:16px; color:#3498db;"></h3>
+            <div id="selectedClassCount" style="font-size:12px; color:#aaa;"></div>
           </div>
-          
-          <form id="studentForm">
-            <input type="hidden" id="studentId">
-            
-            <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">الاسم واللقب *</label>
-            <input type="text" id="fullNameInput" class="form-control" placeholder="مثال: علي بلقاسم" required>
-
-            <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">اختر القسم *</label>
-            <select id="classSelect" class="form-control" required>
-              <option value="">-- اختر القسم --</option>
-            </select>
-
-            <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">رقم التعريف الوطني (اختياري)</label>
-            <input type="text" id="nationalIdInput" class="form-control" placeholder="رقم التعريف...">
-
-            <label style="display:block; margin-bottom:6px; font-size:12px; color:#ccc;">الجنس</label>
-            <select id="genderSelect" class="form-control" style="margin-bottom:18px;">
-              <option value="ذكر">ذكر</option>
-              <option value="أنثى">أنثى</option>
-            </select>
-
-            <button type="submit" class="btn-primary" id="saveStudentBtn" style="width:100%; padding:10px; background:#3498db; border:none; border-radius:6px; color:#fff; font-weight:bold; cursor:pointer;">حفظ التلميذ</button>
-            <button type="button" id="cancelEditBtn" style="width:100%; margin-top:8px; padding:8px; display:none; background:#7f8c8d; border:none; border-radius:6px; color:#fff; cursor:pointer;">إلغاء التعديل</button>
-          </form>
+          <button class="action-btn btn-add" onclick="openAddStudentModal()">+ إضافة تلميذ للقسم</button>
         </div>
 
-        <!-- جدول القائمة والفلترة -->
-        <div class="card-style">
-          
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
-            <h2 style="font-size:15px; margin:0; color:#fff;">قوائم التلاميذ (<span id="totalCount" style="color:#3498db;">0</span>)</h2>
-            <div class="filter-group" style="display:flex; gap:10px;">
-              <select id="filterClass" class="form-control" style="margin-bottom:0; width:auto;">
-                <option value="">كل الأقسام</option>
-              </select>
-              <input type="text" id="searchInput" class="form-control" placeholder="بحث باسم التلميذ..." style="margin-bottom:0; width:170px;">
-            </div>
-          </div>
-
-          <!-- جدول التلاميذ التفاعلي -->
-          <div class="table-responsive">
-            <table style="width:100%; border-collapse:collapse; text-align:right; font-size:13px; min-width: 500px;">
-              <thead>
-                <tr style="background:rgba(255,255,255,0.08); border-bottom:1px solid rgba(255,255,255,0.15); color:#ddd;">
-                  <th style="padding:10px;">#</th>
-                  <th style="padding:10px;">الاسم واللقب</th>
-                  <th style="padding:10px;">القسم</th>
-                  <th style="padding:10px;">الجنس</th>
-                  <th style="padding:10px;">رقم التعريف</th>
-                  <th style="padding:10px; text-align:center;">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody id="studentsTableBody">
-                <tr><td colspan="6" style="text-align:center; padding:30px; color:#aaa;">جاري تحميل البيانات...</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-        </div>
-
+        <div class="student-list" id="studentList"></div>
       </div>
 
     </div>
 
+  </div>
+</div>
+
+<!-- Modal: إضافة/تعديل تلميذ -->
+<div class="modal-backdrop" id="studentModal">
+  <div class="modal-sheet">
+    <h3 id="modalTitle" style="margin-top:0; color:#fff; font-size:16px;">إضافة تلميذ جديد</h3>
+    
+    <form id="studentForm">
+      <input type="hidden" id="studentId">
+      
+      <div class="field-group">
+        <label>الاسم واللقب *</label>
+        <input type="text" id="fullNameInput" required placeholder="مثال: علي بلقاسم">
+      </div>
+
+      <div class="field-group">
+        <label>رقم التعريف الوطني (اختياري)</label>
+        <input type="text" id="nationalIdInput" placeholder="رقم التعريف...">
+      </div>
+
+      <div class="field-group">
+        <label>الجنس</label>
+        <select id="genderSelect">
+          <option value="ذكر">ذكر</option>
+          <option value="أنثى">أنثى</option>
+        </select>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:15px;">
+        <button type="submit" class="action-btn btn-add" style="flex:1; padding:10px;">حفظ</button>
+        <button type="button" class="action-btn" style="background:#555; color:#fff;" onclick="closeStudentModal()">إلغاء</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -238,8 +263,9 @@
 <script>renderSidebar("students");</script>
 <script>
 let profile = null;
-let allStudents = [];
 let allClasses = [];
+let selectedClass = null;
+let currentStudents = [];
 
 async function init() {
   profile = await requireSession("admin");
@@ -247,242 +273,175 @@ async function init() {
     document.getElementById("adminName").textContent = profile.full_name;
   }
   await loadClasses();
-  await loadStudents();
 }
 init();
 
-// 1. تحميل الأقسام
+// 1. تحميل وتنسيق بطاقات الأقسام
 async function loadClasses() {
   const { data, error } = await db.from("classes").select("*").order("name");
-  if (error) {
-    console.error(error);
-    return;
-  }
+  if (error) return console.error(error);
+  
   allClasses = data || [];
-  document.getElementById("classesCount").textContent = allClasses.length;
+  const grid = document.getElementById("classGrid");
+  grid.innerHTML = "";
 
-  const classSelect = document.getElementById("classSelect");
-  const filterClass = document.getElementById("filterClass");
-
-  classSelect.innerHTML = '<option value="">-- اختر القسم --</option>';
-  filterClass.innerHTML = '<option value="">كل الأقسام</option>';
-
-  allClasses.forEach(c => {
-    classSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
-    filterClass.innerHTML += `<option value="${c.id}">${c.name}</option>`;
-  });
-
-  const badgesContainer = document.getElementById("classListBadges");
   if (allClasses.length === 0) {
-    badgesContainer.innerHTML = '<span style="color:#aaa; font-size:12px;">لا توجد أقسام مسجلة حالياً. اختر المستوى في الأعلى واضغط "إضافة قسم".</span>';
+    grid.innerHTML = `<div style="color:#aaa; font-size:12px; grid-column:1/-1;">لا توجد أقسام. قم بإضافة قسم من الأعلى.</div>`;
+    document.getElementById("studentSection").style.display = "none";
     return;
   }
 
-  let html = "";
   allClasses.forEach(c => {
-    html += `
-      <div class="class-badge">
-        <span>${c.name}</span>
-        <button onclick="deleteClass('${c.id}', '${c.name}')" title="حذف القسم">✕</button>
-      </div>
+    const card = document.createElement("div");
+    card.className = `class-card ${selectedClass && selectedClass.id === c.id ? 'active' : ''}`;
+    card.innerHTML = `
+      <button class="del-btn" onclick="deleteClass(event, '${c.id}', '${c.name}')" title="حذف القسم">✕</button>
+      <div class="cname">${c.name}</div>
+      <div class="csub">عرض القائمة</div>
     `;
+    card.onclick = (e) => {
+      if (e.target.classList.contains('del-btn')) return;
+      selectClass(c);
+    };
+    grid.appendChild(card);
   });
-  badgesContainer.innerHTML = html;
 }
 
-// 2. إضافة قسم
+// 2. اختيار قسم لعرض قوائمه
+async function selectClass(cls) {
+  selectedClass = cls;
+  await loadClasses(); // لتحديث البطاقة النشطة
+
+  document.getElementById("studentSection").style.display = "block";
+  document.getElementById("selectedClassTitle").textContent = `تلاميذ قسم: ${cls.name}`;
+  
+  await loadStudents();
+  document.getElementById("studentSection").scrollIntoView({ behavior: "smooth" });
+}
+
+// 3. تحميل تلاميذ القسم المنسق فقط
+async function loadStudents() {
+  if (!selectedClass) return;
+  const list = document.getElementById("studentList");
+  list.innerHTML = `<div style="color:#aaa; font-size:13px; text-align:center; padding:15px;">جاري تحميل التلاميذ...</div>`;
+
+  const { data, error } = await db.from("students").select("*").eq("class_id", selectedClass.id).order("full_name");
+  if (error) return console.error(error);
+
+  currentStudents = data || [];
+  document.getElementById("selectedClassCount").textContent = `العدد الإجمالي: ${currentStudents.length} تلميذ`;
+
+  if (currentStudents.length === 0) {
+    list.innerHTML = `<div style="color:#aaa; font-size:13px; text-align:center; padding:20px; background:rgba(255,255,255,0.02); border-radius:8px;">لا يوجد تلاميذ في هذا القسم حالياً.</div>`;
+    return;
+  }
+
+  list.innerHTML = "";
+  currentStudents.forEach((s, idx) => {
+    const row = document.createElement("div");
+    row.className = "student-row";
+    row.innerHTML = `
+      <div>
+        <div class="sname">${idx + 1}. ${s.full_name}</div>
+        <div class="smeta">الجنس: ${s.gender || "-"} | رقم التعريف: ${s.national_id || "-"}</div>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button class="action-btn btn-edit" onclick="openEditStudentModal('${s.id}')">تعديل</button>
+        <button class="action-btn btn-del" onclick="deleteStudent('${s.id}')">حذف</button>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+// 4. إضافة قسم تلقائياً
 document.getElementById("addSectionBtn").addEventListener("click", async () => {
   const level = document.getElementById("levelSelect").value;
   const prefix = `${level}م`;
 
   const existingNames = allClasses.map(c => c.name).filter(n => n.startsWith(prefix));
-
   let maxNum = 0;
   existingNames.forEach(name => {
     const num = parseInt(name.replace(prefix, ''));
-    if (!isNaN(num) && num > maxNum) {
-      maxNum = num;
-    }
+    if (!isNaN(num) && num > maxNum) maxNum = num;
   });
 
   const nextClassName = `${prefix}${maxNum + 1}`;
-
-  const btn = document.getElementById("addSectionBtn");
-  btn.disabled = true;
-
   const { error } = await db.from("classes").insert([{ name: nextClassName }]);
-  btn.disabled = false;
 
-  if (error) {
-    alert("حدث خطأ أثناء إضافة القسم: " + error.message);
-  } else {
-    await loadClasses();
-  }
+  if (error) alert("خطأ: " + error.message);
+  else await loadClasses();
 });
 
-// 3. حذف قسم
-async function deleteClass(classId, className) {
-  if (!confirm(`هل أنت متأكد من حذف القسم (${className})؟`)) return;
+// 5. حذف قسم
+async function deleteClass(e, classId, className) {
+  e.stopPropagation();
+  if (!confirm(`هل أنت متأكد من حذف قسم (${className})؟ سيؤدي هذا لحذف جميع التلاميذ بداخل القسم!`)) return;
 
   const { error } = await db.from("classes").delete().eq("id", classId);
-  if (error) {
-    alert("حدث خطأ أثناء الحذف: " + error.message);
-  } else {
+  if (error) alert("خطأ: " + error.message);
+  else {
+    if (selectedClass && selectedClass.id === classId) selectedClass = null;
     await loadClasses();
-    await loadStudents();
   }
 }
 
-// 4. تحميل التلاميذ
-async function loadStudents() {
-  const { data, error } = await db.from("students").select("*, classes(name)").order("full_name");
-  if (error) {
-    console.error(error);
-    return;
-  }
-  allStudents = data || [];
-  renderStudentsTable();
+// 6. التحكم بالنموذج المنبثق للتلاميذ (Modal)
+function openAddStudentModal() {
+  document.getElementById("studentId").value = "";
+  document.getElementById("studentForm").reset();
+  document.getElementById("modalTitle").textContent = `إضافة تلميذ إلى (${selectedClass.name})`;
+  document.getElementById("studentModal").classList.add("open");
 }
 
-// 5. عرض جدول التلاميذ
-function renderStudentsTable() {
-  const classId = document.getElementById("filterClass").value;
-  const search = document.getElementById("searchInput").value.trim().toLowerCase();
+function openEditStudentModal(id) {
+  const s = currentStudents.find(item => item.id === id);
+  if (!s) return;
 
-  let filtered = allStudents.filter(s => {
-    const matchClass = !classId || s.class_id === classId;
-    const matchSearch = !search || s.full_name.toLowerCase().includes(search);
-    return matchClass && matchSearch;
-  });
+  document.getElementById("studentId").value = s.id;
+  document.getElementById("fullNameInput").value = s.full_name;
+  document.getElementById("nationalIdInput").value = s.national_id || "";
+  document.getElementById("genderSelect").value = s.gender || "ذكر";
 
-  document.getElementById("totalCount").textContent = filtered.length;
-  const tbody = document.getElementById("studentsTableBody");
-
-  if (allClasses.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" style="text-align:center; padding:30px; color:#aaa;">
-          لا توجد أقسام مسجلة. قم بإضافة الأقسام أولاً من أعلى الصفحة.
-        </td>
-      </tr>`;
-    return;
-  }
-
-  if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:25px; color:#aaa;">لا يوجد تلاميذ في هذا القسم حتى الآن.</td></tr>';
-    return;
-  }
-
-  let html = "";
-  filtered.forEach((s, idx) => {
-    const className = s.classes ? s.classes.name : "غير محدد";
-    html += `
-      <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-        <td style="padding:10px; color:#aaa;">${idx + 1}</td>
-        <td style="padding:10px; font-weight:bold; color:#fff;">${s.full_name}</td>
-        <td style="padding:10px;"><span style="background:rgba(52, 152, 219, 0.2); color:#3498db; padding:3px 8px; border-radius:4px; font-size:12px;">${className}</span></td>
-        <td style="padding:10px; color:#ccc;">${s.gender || "-"}</td>
-        <td style="padding:10px; color:#ccc;">${s.national_id || "-"}</td>
-        <td style="padding:10px; text-align:center;">
-          <button onclick="editStudent('${s.id}')" style="background:#f39c12; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px; margin-left:4px;">تعديل</button>
-          <button onclick="deleteStudent('${s.id}')" style="background:#e74c3c; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">حذف</button>
-        </td>
-      </tr>
-    `;
-  });
-  tbody.innerHTML = html;
+  document.getElementById("modalTitle").textContent = "تعديل بيانات التلميذ";
+  document.getElementById("studentModal").classList.add("open");
 }
 
-// التصفية والبحث
-document.getElementById("filterClass").addEventListener("change", renderStudentsTable);
-document.getElementById("searchInput").addEventListener("input", renderStudentsTable);
+function closeStudentModal() {
+  document.getElementById("studentModal").classList.remove("open");
+}
 
-// 6. إضافة وتعديل تلميذ
 document.getElementById("studentForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const studentId = document.getElementById("studentId").value;
-  const fullName = document.getElementById("fullNameInput").value.trim();
-  const classId = document.getElementById("classSelect").value;
-  const nationalId = document.getElementById("nationalIdInput").value.trim() || null;
-  const gender = document.getElementById("genderSelect").value;
-
-  const btn = document.getElementById("saveStudentBtn");
-  btn.disabled = true;
-  btn.textContent = "جاري الحفظ...";
-
+  const id = document.getElementById("studentId").value;
   const payload = {
-    full_name: fullName,
-    class_id: classId,
-    national_id: nationalId,
-    gender: gender
+    full_name: document.getElementById("fullNameInput").value.trim(),
+    national_id: document.getElementById("nationalIdInput").value.trim() || null,
+    gender: document.getElementById("genderSelect").value,
+    class_id: selectedClass.id
   };
 
   let error = null;
-  if (studentId) {
-    const res = await db.from("students").update(payload).eq("id", studentId);
+  if (id) {
+    const res = await db.from("students").update(payload).eq("id", id);
     error = res.error;
   } else {
     const res = await db.from("students").insert([payload]);
     error = res.error;
   }
 
-  btn.disabled = false;
-  btn.textContent = "حفظ التلميذ";
-
-  if (error) {
-    alert("حدث خطأ أثناء الحفظ: " + error.message);
-  } else {
-    resetForm();
+  if (error) alert("خطأ: " + error.message);
+  else {
+    closeStudentModal();
     await loadStudents();
   }
 });
 
-function editStudent(id) {
-  const student = allStudents.find(s => s.id === id);
-  if (!student) return;
-
-  document.getElementById("studentId").value = student.id;
-  document.getElementById("fullNameInput").value = student.full_name;
-  document.getElementById("classSelect").value = student.class_id;
-  document.getElementById("nationalIdInput").value = student.national_id || "";
-  document.getElementById("genderSelect").value = student.gender || "ذكر";
-
-  document.getElementById("formTitle").textContent = "✏️ تعديل بيانات التلميذ";
-  document.getElementById("saveStudentBtn").textContent = "تحديث البيانات";
-  document.getElementById("cancelEditBtn").style.display = "block";
-}
-
-document.getElementById("cancelEditBtn").addEventListener("click", resetForm);
-
-function resetForm() {
-  document.getElementById("studentId").value = "";
-  document.getElementById("studentForm").reset();
-  document.getElementById("formTitle").textContent = "👤 إضافة تلميذ جديد";
-  document.getElementById("saveStudentBtn").textContent = "حفظ التلميذ";
-  document.getElementById("cancelEditBtn").style.display = "none";
-}
-
 async function deleteStudent(id) {
   if (!confirm("هل أنت متأكد من حذف هذا التلميذ؟")) return;
-
   const { error } = await db.from("students").delete().eq("id", id);
-  if (error) {
-    alert("حدث خطأ أثناء الحذف: " + error.message);
-  } else {
-    await loadStudents();
-  }
-}
-
-// دالة مبسطة للربط بميزة الاستيراد مستقبلاً
-function triggerImport() {
-  document.getElementById("excelFileInput").click();
-}
-
-function handleFileUpload(e) {
-  const file = e.target.files[0];
-  if (file) {
-    alert(`تم اختيار الملف: ${file.name}. يمكن إضافة مكتبة (like PapaParse / SheetJS) لفرز وقراءة بيانات الملف وتخزينها تلقائياً.`);
-  }
+  if (error) alert("خطأ: " + error.message);
+  else await loadStudents();
 }
 </script>
 <div class="app-footer" style="text-align:center; padding:15px; color:#aaa; font-size:12px;">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
