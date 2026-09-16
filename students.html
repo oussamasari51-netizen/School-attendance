@@ -119,13 +119,13 @@
       </div>
       <div class="user-chip">
         <span id="adminName">...</span>
-        <button onclick="logout()">خروج</button>
+        <button onclick="typeof logout === 'function' ? logout() : location.reload()">خروج</button>
       </div>
     </div>
 
     <div class="page-container">
       <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
-        <button class="action-btn btn-print" onclick="openMonthlyReportModal()">📊 طباعة / تحميل جدول حركة التلاميذ (سبتمبر)</button>
+        <button class="action-btn btn-print" onclick="openMonthlyReportModal()">📊 طباعة / تحميل جدول حركة التلاميذ</button>
       </div>
 
       <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.1);">
@@ -224,7 +224,7 @@
   </div>
 </div>
 
-<!-- Modal 3: نافذة تقرير حركة سبتمبر مع زر تحميل PDF -->
+<!-- Modal 3: نافذة تقرير حركة التلاميذ -->
 <div class="modal-backdrop" id="reportModal">
   <div class="modal-sheet">
     <div class="no-print">
@@ -299,7 +299,6 @@ function todayISO() {
 }
 
 async function init() {
-  // السماح للمشرف والآدمن بالدخول
   profile = await requireSession(["admin", "supervisor"]);
   if (profile && profile.full_name) {
     document.getElementById("adminName").textContent = profile.full_name;
@@ -532,10 +531,10 @@ async function deleteClass(e, classId, className) {
   }
 }
 
-// 8. جلب بيانات حركة الشهر (الوافدون والمغادرون) بشكل صحيح
 function openMonthlyReportModal() {
-  const year = "2026";
-  const month = "09"; 
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
   document.getElementById("reportMonth").value = `${year}-${month}`;
   
   document.getElementById("reportModal").classList.add("open");
@@ -548,23 +547,22 @@ async function generateMonthlyReport() {
 
   const [year, month] = monthVal.split('-');
   const startDate = `${year}-${month}-01`;
-  const endDate = `${year}-${month}-31`;
+  
+  // حساب اليوم الأخير من الشهر بدقة (30 أو 31 أو 28/29)
+  const lastDayNum = new Date(parseInt(year), parseInt(month), 0).getDate();
+  const endDate = `${year}-${month}-${String(lastDayNum).padStart(2, '0')}`;
 
   document.getElementById("reportPeriodTitle").textContent = `الشهر: ${month} / ${year} (جميع الأقسام)`;
 
-  // إنشاء خريطة الأقسام لربط اسم القسم بـ id بسهولة
   const classMap = {};
   allClasses.forEach(c => classMap[c.id] = c.name);
 
-  // أ) جلب التلاميذ المغادرين
-  const { data: departures } = await db.from("students")
-    .select("*")
-    .eq("active", false);
+  // أ) جلب المغادرين
+  const { data: departures } = await db.from("students").select("*").eq("active", false);
 
   const depBody = document.getElementById("departuresReportBody");
-  
   const filteredDepartures = (departures || []).filter(s => {
-    if (!s.withdrawal_date) return true;
+    if (!s.withdrawal_date) return false;
     return s.withdrawal_date >= startDate && s.withdrawal_date <= endDate;
   });
 
@@ -582,34 +580,34 @@ async function generateMonthlyReport() {
     `).join('');
   }
 
-  // ب) جلب التلاميذ الوافدين الجدد
-  const { data: arrivals } = await db.from("students")
-    .select("*")
-    .eq("active", true)
-    .gte("enrollment_date", startDate)
-    .lte("enrollment_date", endDate);
+  // ب) جلب الوافدين الجدد (تصحيح الفلترة لمنع إخفاء الوافدين)
+  const { data: arrivals } = await db.from("students").select("*").eq("active", true);
+
+  const filteredArrivals = (arrivals || []).filter(s => {
+    if (!s.enrollment_date) return true; // إظهار التلميذ إذا لم يتم تحديد تاريخه لتفادي إخفائه
+    return s.enrollment_date >= startDate && s.enrollment_date <= endDate;
+  });
 
   const arrBody = document.getElementById("arrivalsReportBody");
 
-  if (!arrivals || arrivals.length === 0) {
+  if (filteredArrivals.length === 0) {
     arrBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#000;">لا يوجد تلاميذ وافدون جدد خلال هذا الشهر.</td></tr>`;
   } else {
-    arrBody.innerHTML = arrivals.map((s, i) => `
+    arrBody.innerHTML = filteredArrivals.map((s, i) => `
       <tr>
         <td style="color:#000;">${i + 1}</td>
         <td style="color:#000;"><b>${s.full_name}</b></td>
         <td style="color:#000;">${classMap[s.class_id] || '-'}</td>
         <td style="color:#000;">${s.gender || '-'}</td>
-        <td style="color:#000;">${s.enrollment_date || '-'}</td>
+        <td style="color:#000;">${s.enrollment_date || 'مسجل سابقاً'}</td>
       </tr>
     `).join('');
   }
 }
 
-// 9. دالة تنزيل الملف بصيغة PDF
 function downloadPDF() {
   const element = document.getElementById('printReportArea');
-  const monthVal = document.getElementById("reportMonth").value || "september";
+  const monthVal = document.getElementById("reportMonth").value || "report";
   
   const opt = {
     margin:       [10, 10, 10, 10],
