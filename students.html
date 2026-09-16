@@ -439,6 +439,7 @@ document.getElementById("studentForm").addEventListener("submit", async (e) => {
     active: true
   };
 
+  // تسجيل تاريخ اليوم للتلاميذ المضافين يدوياً
   if (!id) {
     payload.enrollment_date = todayISO();
   }
@@ -548,7 +549,6 @@ async function generateMonthlyReport() {
   const [year, month] = monthVal.split('-');
   const startDate = `${year}-${month}-01`;
   
-  // حساب اليوم الأخير من الشهر بدقة (30 أو 31 أو 28/29)
   const lastDayNum = new Date(parseInt(year), parseInt(month), 0).getDate();
   const endDate = `${year}-${month}-${String(lastDayNum).padStart(2, '0')}`;
 
@@ -580,12 +580,16 @@ async function generateMonthlyReport() {
     `).join('');
   }
 
-  // ب) جلب الوافدين الجدد (تصحيح الفلترة لمنع إخفاء الوافدين)
+  // ب) جلب الوافدين الجدد فقط (الذين تم إدخالهم يدوياً وتاريخهم يقع ضمن هذا الشهر)
   const { data: arrivals } = await db.from("students").select("*").eq("active", true);
 
   const filteredArrivals = (arrivals || []).filter(s => {
-    if (!s.enrollment_date) return true; // إظهار التلميذ إذا لم يتم تحديد تاريخه لتفادي إخفائه
-    return s.enrollment_date >= startDate && s.enrollment_date <= endDate;
+    // يستثني كلياً جميع التلاميذ الذين ليس لديهم تاريخ إدخال يدوياً
+    if (!s.enrollment_date) return false;
+    
+    // اقتطاع الجزء الخاص بالتاريخ فقط لتفادي أخطاء الـ ISO Timestamp
+    const cleanDate = s.enrollment_date.split('T')[0];
+    return cleanDate >= startDate && cleanDate <= endDate;
   });
 
   const arrBody = document.getElementById("arrivalsReportBody");
@@ -599,7 +603,7 @@ async function generateMonthlyReport() {
         <td style="color:#000;"><b>${s.full_name}</b></td>
         <td style="color:#000;">${classMap[s.class_id] || '-'}</td>
         <td style="color:#000;">${s.gender || '-'}</td>
-        <td style="color:#000;">${s.enrollment_date || 'مسجل سابقاً'}</td>
+        <td style="color:#000;">${s.enrollment_date.split('T')[0]}</td>
       </tr>
     `).join('');
   }
