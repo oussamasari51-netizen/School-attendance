@@ -112,7 +112,7 @@ function renderReadonlyGrid(tableId, rows, joinKey) {
     html += `<tr><td class="day-label">${dayName}</td>`;
     TIMETABLE_PERIODS.forEach(p => {
       const r = map[`${dow}_${p.slot}`];
-      html += `<td class="ro-cell">${r ? `<b>${r.subject || ""}</b>${r[joinKey] ? r[joinKey].name : (r.teacher_label || "")}<br>${r.room || ""}` : ""}</td>`;
+      html += `<td class="ro-cell">${r ? `<b>${r.subject || ""}</b>${r[joinKey] ? r[joinKey].name : (r.teacher_label \vert{}\vert{} "")}<br>${r.room || ""}` : ""}</td>`;
     });
     html += "</tr>";
   });
@@ -142,6 +142,92 @@ function printGrid(title, tableId) {
   w.document.close();
 }
 
+// دالة الطباعة الجماعية لجميع الأقسام المربوطة بـ Supabase
+async function printAllClasses() {
+  const btn = document.getElementById("printAllClassesBtn");
+  btn.disabled = true;
+  btn.textContent = "جاري التحضير...";
+
+  const { data: entries, error } = await db.from("timetable_entries").select("*, classes(name)").order("class_id");
+  
+  if (error) {
+    showToast("حدث خطأ أثناء جلب البيانات للطباعة");
+    btn.disabled = false;
+    btn.textContent = "🖨️ طباعة كل الأقسام (جماعي)";
+    return;
+  }
+
+  const classMap = {};
+  allClasses.forEach(c => {
+    classMap[c.id] = { name: c.name, entries: {} };
+  });
+
+  (entries || []).forEach(r => {
+    if (classMap[r.class_id]) {
+      classMap[r.class_id].entries[`${r.day_of_week}_${r.period_slot}`] = r;
+    }
+  });
+
+  let allGridsHtml = "";
+
+  Object.values(classMap).forEach(cls => {
+    let tableHtml = "<table><thead><tr><th>اليوم</th>" + TIMETABLE_PERIODS.map(p => `<th>${p.label}<br><small>${p.time}</small></th>`).join("") + "</tr></thead><tbody>";
+    
+    TIMETABLE_DAYS.forEach((dayName, dow) => {
+      tableHtml += `<tr><td class="day-label">${dayName}</td>`;
+      TIMETABLE_PERIODS.forEach(p => {
+        const r = cls.entries[`${dow}_${p.slot}`] || {};
+        tableHtml += `<td class="ro-cell">
+          ${r.subject ? `<b>${r.subject}</b>` : ""}
+          ${r.teacher_label ? `${r.teacher_label}<br>` : ""}
+          ${r.room ? `<small>${r.room}</small>` : ""}
+        </td>`;
+      });
+      tableHtml += "</tr>";
+    });
+    tableHtml += "</tbody></table>";
+
+    allGridsHtml += `
+      <div class="print-page">
+        <div class="head">
+          <span>${SCHOOL_NAME}<br>السنة الدراسية: ${SCHOOL_YEAR}</span>
+          <span>الجمهورية الجزائرية الديمقراطية الشعبية<br>وزارة التربية الوطنية</span>
+        </div>
+        <h1>استعمال الزمن — قسم ${cls.name}</h1>
+        ${tableHtml}
+      </div>
+    `;
+  });
+
+  let fullHtml = `
+  <html dir="rtl" lang="ar"><head><meta charset="UTF-8">
+  <title>استعمال الزمن - جميع الأقسام</title>
+  <style>
+    body { font-family: Arial, Tahoma, sans-serif; padding: 10px; color: #111; }
+    .print-page { page-break-after: always; margin-bottom: 30px; }
+    .print-page:last-child { page-break-after: avoid; }
+    .head { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; font-size: 12px; }
+    h1 { font-size: 17px; text-align: center; margin: 6px 0 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #777; padding: 6px 4px; text-align: center; font-size: 11px; }
+    th { background: #eee; }
+    .ro-cell b { display: block; font-size: 11.5px; }
+    @media print {
+      body { padding: 0; }
+      .print-page { page-break-after: always; height: 98vh; display: flex; flex-direction: column; justify-content: flex-start; }
+    }
+  </style></head><body>
+    ${allGridsHtml}
+  </body></html>`;
+
+  const w = window.open("", "_blank");
+  w.document.write(fullHtml);
+  w.document.close();
+  
+  btn.disabled = false;
+  btn.textContent = "🖨️ طباعة كل الأقسام (جماعي)";
+}
+
 document.getElementById("printClassBtn").onclick = () => {
   const cname = allClasses.find(c => c.id === selectedClassId);
   printGrid(`استعمال الزمن — قسم ${cname ? cname.name : ""}`, "classGrid");
@@ -152,6 +238,8 @@ document.getElementById("printTeacherBtn").onclick = () => {
 document.getElementById("printRoomBtn").onclick = () => {
   printGrid(`استعمال الزمن — ${document.getElementById("roomSelect").value}`, "roomGrid");
 };
+
+document.getElementById("printAllClassesBtn").onclick = printAllClasses;
 
 let parsedRows = [];
 document.getElementById("importFile").addEventListener("change", async (e) => {
