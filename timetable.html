@@ -55,7 +55,10 @@
   <div id="viewClass">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
       <select id="classSelect" class="datepick-inline"></select>
-      <button class="btn-ghost" id="printClassBtn">🖨️ طباعة</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-ghost" id="printClassBtn">🖨️ طباعة القسم</button>
+        <button class="btn-primary" id="printAllClassesBtn" style="background:var(--primary);">🖨️ طباعة كل الأقسام (جماعي)</button>
+      </div>
     </div>
     <div style="overflow-x:auto;"><table class="tt" id="classGrid"></table></div>
   </div>
@@ -97,7 +100,6 @@
 </div>
 </div>
 
-<!-- استدعاء الأكواد ببطاقة كسر الكاش -->
 <script src="assets/config.js?v=2"></script>
 <script src="assets/sidebar.js?v=2"></script>
 <script>renderSidebar("timetable");</script>
