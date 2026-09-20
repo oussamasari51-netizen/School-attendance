@@ -195,6 +195,11 @@
           <option value="أنثى">أنثى</option>
         </select>
       </div>
+      <!-- خانة تاريخ الالتحاق/الاضافة للوافدون -->
+      <div class="field-group">
+        <label>تاريخ الالتحاق / الإضافة (للوافدين)</label>
+        <input type="date" id="enrollmentDateInput">
+      </div>
       <div style="display:flex; gap:8px; margin-top:15px;">
         <button type="submit" class="action-btn btn-add" style="flex:1; padding:10px;">حفظ</button>
         <button type="button" class="action-btn" style="background:#555; color:#fff;" onclick="closeModal('studentModal')">إلغاء</button>
@@ -203,7 +208,7 @@
   </div>
 </div>
 
-<!-- Modal 2: نافذة الحذف والتاريخ -->
+<!-- Modal 2: نافذة الحذف والتاريخ (للمغادرين) -->
 <div class="modal-backdrop" id="withdrawModal">
   <div class="modal-sheet" style="max-width: 450px;">
     <h3 id="withdrawModalTitle" style="margin-top:0; color:#e74c3c; font-size:15px;">حذف التلميذ من القسم</h3>
@@ -217,7 +222,7 @@
       </select>
     </div>
     <div class="field-group">
-      <label>تاريخ الخروج</label>
+      <label>تاريخ الخروج / الحذف</label>
       <input type="date" id="withdrawDate">
     </div>
     <div style="display:flex; gap:8px; margin-top:15px;">
@@ -409,6 +414,7 @@ function openAddStudentModal() {
   document.getElementById("studentId").value = "";
   document.getElementById("studentForm").reset();
   document.getElementById("classSelectInput").value = selectedClass.id;
+  document.getElementById("enrollmentDateInput").value = todayISO();
   document.getElementById("modalTitle").textContent = `إضافة تلميذ جديد إلى (${selectedClass.name})`;
   document.getElementById("studentModal").classList.add("open");
 }
@@ -422,6 +428,7 @@ function openEditStudentModal(id) {
   document.getElementById("classSelectInput").value = s.class_id;
   document.getElementById("nationalIdInput").value = s.national_id || "";
   document.getElementById("genderSelect").value = s.gender || "ذكر";
+  document.getElementById("enrollmentDateInput").value = s.enrollment_date ? s.enrollment_date.split('T')[0] : todayISO();
 
   document.getElementById("modalTitle").textContent = "تعديل بيانات التلميذ";
   document.getElementById("studentModal").classList.add("open");
@@ -431,23 +438,23 @@ document.getElementById("studentForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const id = document.getElementById("studentId").value;
   const selectedClassId = document.getElementById("classSelectInput").value;
+  const enrollmentDate = document.getElementById("enrollmentDateInput").value || todayISO();
 
   const payload = {
     full_name: document.getElementById("fullNameInput").value.trim(),
     class_id: selectedClassId,
     national_id: document.getElementById("nationalIdInput").value.trim() || null,
     gender: document.getElementById("genderSelect").value,
-    active: true,
-    source: 'manual'
+    enrollment_date: enrollmentDate,
+    active: true
   };
 
   if (!id) {
-    payload.enrollment_date = todayISO();
+    payload.source = 'manual';
   }
 
   let error = null;
   if (id) {
-    delete payload.source;
     const res = await db.from("students").update(payload).eq("id", id);
     error = res.error;
   } else {
