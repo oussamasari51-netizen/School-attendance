@@ -157,6 +157,8 @@
             <div id="selectedClassCount" style="font-size:12px; color: var(--ink-soft);"></div>
           </div>
           <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <!-- خانة البحث عن التلميذ -->
+            <input type="text" id="studentSearchInput" oninput="filterStudentList()" placeholder="🔍 بحث عن تلميذ..." style="padding:6px 10px; background: var(--bg-input, #111); border:1px solid var(--line, rgba(255,255,255,0.2)); color: var(--ink); border-radius:6px; font-size:12px; width:160px;">
             <label style="font-size:12px; color: var(--ink-soft); cursor:pointer;">
               <input type="checkbox" id="showInactive" onchange="loadStudents()"> إظهار المنسحبين
             </label>
@@ -377,15 +379,21 @@ async function loadStudents() {
   if (error) return console.error(error);
 
   currentStudents = data || [];
-  document.getElementById("selectedClassCount").textContent = `العدد الإجمالي: ${currentStudents.length} تلميذ`;
+  renderStudentList(currentStudents);
+}
 
-  if (currentStudents.length === 0) {
-    list.innerHTML = `<div style="color: var(--ink-soft); font-size:13px; text-align:center; padding:20px; background: var(--surface); border-radius:8px;">لا يوجد تلاميذ مسجلين.</div>`;
+// دالة عرض مصفوفة التلاميذ في الصفحة
+function renderStudentList(studentsArray) {
+  const list = document.getElementById("studentList");
+  document.getElementById("selectedClassCount").textContent = `العدد الإجمالي: ${studentsArray.length} تلميذ`;
+
+  if (studentsArray.length === 0) {
+    list.innerHTML = `<div style="color: var(--ink-soft); font-size:13px; text-align:center; padding:20px; background: var(--surface); border-radius:8px;">لا يوجد تلاميذ مطابقون للبحث.</div>`;
     return;
   }
 
   list.innerHTML = "";
-  currentStudents.forEach((s, idx) => {
+  studentsArray.forEach((s, idx) => {
     const row = document.createElement("div");
     row.className = "student-row";
     
@@ -408,6 +416,23 @@ async function loadStudents() {
     `;
     list.appendChild(row);
   });
+}
+
+// دالة البحث الفوري في قائمة تلاميذ القسم المحدد
+function filterStudentList() {
+  const searchTerm = document.getElementById("studentSearchInput").value.trim().toLowerCase();
+  if (!searchTerm) {
+    renderStudentList(currentStudents);
+    return;
+  }
+
+  const filtered = currentStudents.filter(s => {
+    const nameMatch = s.full_name && s.full_name.toLowerCase().includes(searchTerm);
+    const idMatch = s.national_id && s.national_id.toString().includes(searchTerm);
+    return nameMatch || idMatch;
+  });
+
+  renderStudentList(filtered);
 }
 
 function openAddStudentModal() {
