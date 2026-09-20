@@ -1,4 +1,4 @@
-const CACHE_NAME = 'al-nazir-v2'; // تغيير الاسم لتدمير v1 القديم
+const CACHE_NAME = 'al-nazir-v3'; // رفع الإصدار لتدمير v2 العالق وتحديث الملفات
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -21,7 +21,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// تنظيف الكاش القديم (v1) فوراً
+// تنظيف الكاش القديم (v1 و v2) فوراً عند التفعيل
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -37,7 +37,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// الاستراتيجية الجديدة: حاول الجلب من الشبكة أولاً، إذا لم تتوفر شبكة استخدم الكاش
+// استراتيجية الجلب: حاول الجلب من الشبكة أولاً مع تجاوز طلبات Supabase
 self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('supabase.co')) {
     return;
