@@ -27,77 +27,77 @@
 <body>
 
 <div class="app-shell">
-<div id="sidebarMount"></div>
-<div class="main-area">
+  <div id="sidebarMount"></div>
+  <div class="main-area">
 
-<div class="topbar">
-  <div class="brand">
-    <div class="icon">🗓️</div>
-    <div>
-      <h1>استعمال الزمن</h1>
-      <div class="meta">جدول الحصص الأسبوعي — حسب القسم، الأستاذ، أو القاعة</div>
-    </div>
-  </div>
-  <div class="user-chip">
-    <span id="adminName">...</span>
-    <button onclick="logout()">خروج</button>
-  </div>
-</div>
-
-<div class="page">
-  <div class="tabs">
-    <button class="tab-btn active" id="tabClass">حسب القسم</button>
-    <button class="tab-btn" id="tabTeacher">حسب الأستاذ</button>
-    <button class="tab-btn" id="tabRoom">حسب القاعة</button>
-    <button class="tab-btn" id="tabImport">📥 استيراد جماعي</button>
-  </div>
-
-  <div id="viewClass">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-      <select id="classSelect" class="datepick-inline"></select>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn-ghost" id="printClassBtn">🖨️ طباعة القسم</button>
-        <button class="btn-primary" id="printAllClassesBtn" style="background:var(--primary);">🖨️ طباعة كل الأقسام (جماعي)</button>
+    <div class="topbar">
+      <div class="brand">
+        <div class="icon">🗓️</div>
+        <div>
+          <h1>استعمال الزمن</h1>
+          <div class="meta">جدول الحصص الأسبوعي — حسب القسم، الأستاذ، أو القاعة</div>
+        </div>
+      </div>
+      <div class="user-chip">
+        <span id="adminName">...</span>
+        <button onclick="logout()">خروج</button>
       </div>
     </div>
-    <div style="overflow-x:auto;"><table class="tt" id="classGrid"></table></div>
-  </div>
 
-  <div id="viewTeacher" style="display:none;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-      <select id="teacherSelect" class="datepick-inline"></select>
-      <button class="btn-ghost" id="printTeacherBtn">🖨️ طباعة</button>
-    </div>
-    <div style="overflow-x:auto;"><table class="tt" id="teacherGrid"></table></div>
-  </div>
+    <div class="page">
+      <div class="tabs">
+        <button class="tab-btn active" id="tabClass">حسب القسم</button>
+        <button class="tab-btn" id="tabTeacher">حسب الأستاذ</button>
+        <button class="tab-btn" id="tabRoom">حسب القاعة</button>
+        <button class="tab-btn" id="tabImport">📥 استيراد جماعي</button>
+      </div>
 
-  <div id="viewRoom" style="display:none;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
-      <select id="roomSelect" class="datepick-inline"></select>
-      <button class="btn-ghost" id="printRoomBtn">🖨️ طباعة</button>
-    </div>
-    <div style="overflow-x:auto;"><table class="tt" id="roomGrid"></table></div>
-  </div>
+      <div id="viewClass">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <select id="classSelect" class="datepick-inline"></select>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn-ghost" id="printClassBtn">🖨️ طباعة القسم</button>
+            <button class="btn-primary" id="printAllClassesBtn" style="background:var(--primary);">🖨️ طباعة كل الأقسام (جماعي)</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;"><table class="tt" id="classGrid"></table></div>
+      </div>
 
-  <div id="viewImport" style="display:none;">
-    <div class="auth-card" style="max-width:640px; padding:26px;">
-      <h1 style="font-size:16px; margin-bottom:6px;">استيراد جماعي</h1>
-      <p class="sub" style="margin-bottom:16px;">
-        ملف Excel/CSV بالأعمدة التالية بالضبط (بهذا الترتيب): <br>
-        <b>القسم، اليوم، الحصة، المادة، الأستاذ، القاعة، المجموعة</b><br>
-        اليوم: رقم من 0 (الأحد) إلى 4 (الخميس) أو اسم اليوم بالعربية. الحصة: رقم من 1 إلى 8.
-      </p>
-      <input type="file" id="importFile" accept=".xlsx,.xls,.csv">
-      <div id="importStatus" class="loading-text" style="display:none;"></div>
-      <div id="importPreview" style="display:none; margin-top:14px;">
-        <div id="importSummary" style="font-size:13.5px; margin-bottom:10px;"></div>
-        <button class="btn-primary" id="confirmImportBtn" style="width:100%;">تأكيد الاستيراد</button>
+      <div id="viewTeacher" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <select id="teacherSelect" class="datepick-inline"></select>
+          <button class="btn-ghost" id="printTeacherBtn">🖨️ طباعة</button>
+        </div>
+        <div style="overflow-x:auto;"><table class="tt" id="teacherGrid"></table></div>
+      </div>
+
+      <div id="viewRoom" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <select id="roomSelect" class="datepick-inline"></select>
+          <button class="btn-ghost" id="printRoomBtn">🖨️ طباعة</button>
+        </div>
+        <div style="overflow-x:auto;"><table class="tt" id="roomGrid"></table></div>
+      </div>
+
+      <div id="viewImport" style="display:none;">
+        <div class="auth-card" style="max-width:640px; padding:26px;">
+          <h1 style="font-size:16px; margin-bottom:6px;">استيراد جماعي</h1>
+          <p class="sub" style="margin-bottom:16px;">
+            ملف Excel/CSV بالأعمدة التالية بالضبط (بهذا الترتيب): <br>
+            <b>القسم، اليوم، الحصة، المادة، الأستاذ، القاعة، المجموعة</b><br>
+            اليوم: رقم من 0 (الأحد) إلى 4 (الخميس) أو اسم اليوم بالعربية. الحصة: رقم من 1 إلى 8.
+          </p>
+          <input type="file" id="importFile" accept=".xlsx,.xls,.csv">
+          <div id="importStatus" class="loading-text" style="display:none;"></div>
+          <div id="importPreview" style="display:none; margin-top:14px;">
+            <div id="importSummary" style="font-size:13.5px; margin-bottom:10px;"></div>
+            <button class="btn-primary" id="confirmImportBtn" style="width:100%;">تأكيد الاستيراد</button>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-</div>
 
-</div>
+  </div>
 </div>
 
 <script src="assets/config.js?v=2"></script>
