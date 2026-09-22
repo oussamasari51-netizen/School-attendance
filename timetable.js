@@ -146,6 +146,107 @@ document.getElementById("printClassBtn").onclick = () => {
   const cname = allClasses.find(c => c.id === selectedClassId);
   printGrid(`استعمال الزمن — قسم ${cname ? cname.name : ""}`, "classGrid");
 };
+
+// طباعة جميع جداول الأقسام دفعة واحدة، مع صفحة مستقلة لكل قسم.
+document.getElementById("printAllClassesBtn").onclick = printAllClasses;
+
+async function printAllClasses() {
+  const btn = document.getElementById("printAllClassesBtn");
+  if (!allClasses.length) {
+    showToast("لا توجد أقسام للطباعة");
+    return;
+  }
+
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = "⏳ جاري تجهيز الجداول...";
+
+  try {
+    const { data, error } = await db
+      .from("timetable_entries")
+      .select("*")
+      .order("class_id")
+      .order("day_of_week")
+      .order("period_slot");
+
+    if (error) throw error;
+
+    const entriesByClass = {};
+    (data || []).forEach(r => {
+      if (!entriesByClass[r.class_id]) entriesByClass[r.class_id] = {};
+      entriesByClass[r.class_id][`${r.day_of_week}_${r.period_slot}`] = r;
+    });
+
+    const pages = allClasses.map(c => {
+      const entries = entriesByClass[c.id] || {};
+      let tableHtml = "<table><thead><tr><th>اليوم</th>" +
+        TIMETABLE_PERIODS.map(p => `<th>${p.label}<br><small>${p.time}</small></th>`).join("") +
+        "</tr></thead><tbody>";
+
+      TIMETABLE_DAYS.forEach((dayName, dow) => {
+        tableHtml += `<tr><td class="day-label">${dayName}</td>`;
+        TIMETABLE_PERIODS.forEach(p => {
+          const r = entries[`${dow}_${p.slot}`] || {};
+          tableHtml += `<td>${r.subject ? `<b>${r.subject}</b>` : ""}${r.teacher_label ? `<span>${r.teacher_label}</span>` : ""}${r.room ? `<small>${r.room}</small>` : ""}</td>`;
+        });
+        tableHtml += "</tr>";
+      });
+
+      tableHtml += "</tbody></table>";
+
+      return `
+        <section class="print-page">
+          <div class="head">
+            <span>${SCHOOL_NAME}<br>السنة الدراسية: ${SCHOOL_YEAR}</span>
+            <span>الجمهورية الجزائرية الديمقراطية الشعبية<br>وزارة التربية الوطنية</span>
+          </div>
+          <h1>استعمال الزمن — قسم ${c.name}</h1>
+          ${tableHtml}
+        </section>`;
+    }).join("");
+
+    const html = `
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8">
+        <title>استعمال الزمن — جميع الأقسام</title>
+        <style>
+          @page { size: A4 landscape; margin: 10mm; }
+          * { box-sizing: border-box; }
+          body { font-family: Arial,Tahoma,sans-serif; padding:0; color:#111; }
+          .print-page { page-break-after: always; break-after: page; padding:8px 4px; }
+          .print-page:last-child { page-break-after:auto; break-after:auto; }
+          .head { display:flex; justify-content:space-between; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:14px; font-size:12px; }
+          h1 { font-size:17px; text-align:center; margin:6px 0 16px; }
+          table { width:100%; border-collapse:collapse; table-layout:fixed; }
+          th,td { border:1px solid #999; padding:5px; text-align:center; vertical-align:middle; font-size:10.5px; }
+          th { background:#eee; }
+          td.day-label { font-weight:700; width:70px; }
+          td b { display:block; font-size:11px; }
+          td span { display:block; font-size:10px; }
+          td small { display:block; font-size:9px; }
+        </style>
+      </head>
+      <body>${pages}</body>
+      </html>`;
+
+    const w = window.open("", "_blank");
+    if (!w) {
+      showToast("تعذر فتح نافذة الطباعة. اسمح بالنوافذ المنبثقة لهذا الموقع.");
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 350);
+  } catch (err) {
+    console.error(err);
+    showToast("حدث خطأ أثناء تجهيز جداول الأقسام");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
 document.getElementById("printTeacherBtn").onclick = () => {
   printGrid(`استعمال الزمن — الأستاذ ${document.getElementById("teacherSelect").value}`, "teacherGrid");
 };
