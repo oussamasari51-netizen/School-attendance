@@ -32,86 +32,59 @@
 </style>
 </head>
 <body>
-
 <div class="app-shell">
 <div id="sidebarMount"></div>
 <div class="main-area">
-
 <div class="topbar">
   <div class="brand">
     <div class="icon">📊</div>
     <div>
       <h1>التقارير</h1>
-      <div class="meta">${SCHOOL_NAME_PLACEHOLDER}</div>
+      <div class="meta">\${SCHOOL_NAME_PLACEHOLDER}</div>
     </div>
   </div>
-  <div class="user-chip">
-    <span id="adminName">...</span>
-    <button onclick="logout()">خروج</button>
-  </div>
+  <div class="user-chip"><span id="adminName">...</span><button onclick="logout()">خروج</button></div>
 </div>
-
 <div class="page">
-
   <div class="tabs">
     <button class="tab-btn active" id="tabDaily">التقرير اليومي</button>
     <button class="tab-btn" id="tabMonthly">التقرير الشهري</button>
   </div>
-
   <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
     <input type="date" id="dayPicker" class="datepick">
     <input type="month" id="monthPicker" class="datepick" style="display:none;">
     <button class="btn-primary" id="printBtn">🖨️ طباعة / PDF</button>
   </div>
-
   <div id="loadingMsg" class="loading-text">جاري حساب الإحصائيات...</div>
-
   <div id="reportBody" style="display:none;">
     <div class="kpi-grid" id="kpiGrid"></div>
-
     <div class="two-col">
       <div class="panel">
         <h3 id="tableTitle">نسب الغياب حسب الأقسام</h3>
         <table class="rtable">
-          <thead><tr><th>القسم</th><th>الغياب</th><th>نسبة الغياب</th></tr></thead>
+          <thead><tr><th>القسم</th><th>حالات الغياب</th><th>الحصص الضائعة</th><th>نسبة الغياب</th></tr></thead>
           <tbody id="classTableBody"></tbody>
         </table>
       </div>
-      <div class="panel">
-        <h3>توزيع الغيابات حسب الأقسام</h3>
-        <canvas id="statusChart" height="200"></canvas>
-      </div>
+      <div class="panel"><h3>توزيع الحصص الضائعة حسب الأقسام</h3><canvas id="statusChart" height="200"></canvas></div>
     </div>
-
     <div class="two-col">
-      <div class="panel">
-        <h3 id="trendTitle">التطور</h3>
-        <canvas id="trendChart" height="180"></canvas>
-      </div>
-      <div class="panel">
-        <h3>أعلى الأقسام غياباً</h3>
-        <div id="topList"></div>
-      </div>
+      <div class="panel"><h3 id="trendTitle">التطور</h3><canvas id="trendChart" height="180"></canvas></div>
+      <div class="panel"><h3>أعلى الأقسام من حيث حالات الغياب</h3><div id="topList"></div></div>
     </div>
-
     <div class="panel" id="barredPanel" style="display:none;">
-      <h3>🚫 ممنوعون من الدخول غداً (بقوا غائبين حتى آخر حصة دون تسوية)</h3>
-      <div id="barredList"></div>
+      <h3>🚫 ممنوعون من الدخول غداً (بقوا غائبين حتى آخر حصة دون تسوية)</h3><div id="barredList"></div>
     </div>
   </div>
-
 </div>
-
-</div><!-- /main-area -->
-</div><!-- /app-shell -->
+</div></div>
 
 <script src="assets/config.js"></script>
 <script src="assets/sidebar.js"></script>
 <script>
 document.querySelector('.meta').textContent = SCHOOL_NAME;
-
 let profile = null;
-let mode = "daily"; // or "monthly"
+let mode = "daily";
 let statusChartInst = null, trendChartInst = null;
 let lastStats = null;
 
@@ -120,11 +93,9 @@ async function init() {
   if (!profile) return;
   document.getElementById("adminName").textContent = profile.full_name;
   renderSidebar("reports", profile.role);
-
   const d = new Date();
   document.getElementById("dayPicker").value = todayISO();
   document.getElementById("monthPicker").value = d.toISOString().slice(0, 7);
-
   await renderReport();
 }
 
@@ -142,7 +113,6 @@ document.getElementById("dayPicker").addEventListener("change", renderReport);
 document.getElementById("monthPicker").addEventListener("change", renderReport);
 
 function schoolPeriodsInRange(startISO, endISO) {
-  // يرجع {schoolDays, totalPeriodSlots} محسوبة يوماً بيوم حسب عدد حصص كل يوم فعلياً
   let schoolDays = 0, totalPeriodSlots = 0;
   let d = new Date(startISO + "T00:00:00");
   const end = new Date(endISO + "T00:00:00");
@@ -163,61 +133,86 @@ function monthRange(monthStr) {
   return { start, end };
 }
 
+/*
+ * قاعدة الإحصاء:
+ * absenceEvents = عدد أيام الغياب الفريدة لكل تلميذ (student_id + record_date).
+ * missedPeriods = عدد سجلات الحصص غير المسوّاة.
+ * مثال: غياب الحصص 1 و3 و4 و5 في نفس اليوم = حالة غياب واحدة + 4 حصص ضائعة.
+ */
 async function computeStats(startISO, endISO) {
   const [{ data: students }, { data: classes }, { data: records }] = await Promise.all([
     db.from("students").select("id, class_id, full_name").eq("active", true),
     db.from("classes").select("id, name").order("name"),
-    db.from("attendance_records").select("student_id, class_id, status, hour_slot, record_date, students(full_name)").gte("record_date", startISO).lte("record_date", endISO),
+    db.from("attendance_records")
+      .select("student_id, class_id, status, hour_slot, record_date, students(full_name)")
+      .gte("record_date", startISO)
+      .lte("record_date", endISO),
   ]);
 
   const studentsPerClass = {};
   (students || []).forEach(s => { if (s.class_id) studentsPerClass[s.class_id] = (studentsPerClass[s.class_id] || 0) + 1; });
+
   const totalStudents = (students || []).length;
   const { schoolDays, totalPeriodSlots } = schoolPeriodsInRange(startISO, endISO);
   const totalPossible = totalStudents * totalPeriodSlots;
 
   const perClass = {};
-  (classes || []).forEach(c => perClass[c.id] = { name: c.name, absentPeriods: 0 });
+  (classes || []).forEach(c => perClass[c.id] = { name: c.name, absenceEventKeys: new Set(), missedPeriods: 0 });
 
+  const absenceEventKeys = new Set();
   const statusCounts = { plain: 0, exit: 0 };
-  const hourDist = {}; PERIODS.forEach(p => hourDist[p.slot] = 0);
+  const hourDist = {};
+  PERIODS.forEach(p => hourDist[p.slot] = 0);
   const weekdayDist = [0, 0, 0, 0, 0, 0, 0];
-  const barredToday = []; // فقط ذات فائدة عند نطاق يوم واحد
+  const barredToday = [];
 
   (records || []).forEach(r => {
     const cat = reportCategory(r.status);
     if (cat === "resolved") return;
+
     statusCounts[cat] = (statusCounts[cat] || 0) + 1;
     hourDist[r.hour_slot] = (hourDist[r.hour_slot] || 0) + 1;
     const dow = new Date(r.record_date + "T00:00:00").getDay();
     weekdayDist[dow]++;
-    if (perClass[r.class_id]) perClass[r.class_id].absentPeriods++;
 
-    // هل هذا آخر حصة في يومه ولا يزال "غائب" بدون أي معالجة؟
+    const eventKey = `${r.student_id}|${r.record_date}`;
+    absenceEventKeys.add(eventKey);
+
+    if (perClass[r.class_id]) {
+      perClass[r.class_id].missedPeriods++;
+      perClass[r.class_id].absenceEventKeys.add(eventKey);
+    }
+
     if (r.status === "غائب" && r.hour_slot === lastPeriodOfDay(r.record_date)) {
       barredToday.push({ name: r.students ? r.students.full_name : "", classId: r.class_id });
     }
   });
 
-  const totalAbsent = statusCounts.plain + statusCounts.exit;
-  const attendanceRate = totalPossible > 0 ? (1 - totalAbsent / totalPossible) * 100 : 100;
+  const missedPeriods = statusCounts.plain + statusCounts.exit;
+  const absenceEvents = absenceEventKeys.size;
+  const attendanceRate = totalPossible > 0 ? Math.max(0, (1 - missedPeriods / totalPossible) * 100) : 100;
 
   const classRows = (classes || []).map(c => {
     const cs = studentsPerClass[c.id] || 0;
     const possible = cs * totalPeriodSlots;
-    const absent = perClass[c.id].absentPeriods;
-    const rate = possible > 0 ? (absent / possible) * 100 : 0;
-    return { id: c.id, name: c.name, students: cs, possible, absent, rate };
-  }).sort((a, b) => b.rate - a.rate);
+    const missed = perClass[c.id].missedPeriods;
+    const events = perClass[c.id].absenceEventKeys.size;
+    const rate = possible > 0 ? (missed / possible) * 100 : 0;
+    return {
+      id: c.id, name: c.name, students: cs, possible,
+      absent: missed, missedPeriods: missed, absenceEvents: events, rate
+    };
+  }).sort((a, b) => b.absenceEvents - a.absenceEvents || b.rate - a.rate);
 
-  // أسماء الأقسام لقائمة الممنوعين
-  const classNameById = {}; (classes || []).forEach(c => classNameById[c.id] = c.name);
+  const classNameById = {};
+  (classes || []).forEach(c => classNameById[c.id] = c.name);
   barredToday.forEach(b => b.className = classNameById[b.classId] || "");
 
   return {
     startISO, endISO, totalStudents, totalClasses: (classes || []).length,
-    schoolDays, totalPeriodSlots, totalPossible, totalAbsent, attendanceRate,
-    statusCounts, hourDist, weekdayDist, classRows, barredToday,
+    schoolDays, totalPeriodSlots, totalPossible,
+    absenceEvents, missedPeriods, totalAbsent: missedPeriods,
+    attendanceRate, statusCounts, hourDist, weekdayDist, classRows, barredToday
   };
 }
 
@@ -249,11 +244,11 @@ async function renderReport() {
 
   if (isMonthly) {
     document.getElementById("tableTitle").textContent = `نسب الغياب حسب الأقسام — ${label}`;
-    document.getElementById("trendTitle").textContent = "تطور نسبة الغياب خلال آخر 6 أشهر";
+    document.getElementById("trendTitle").textContent = "تطور نسبة الحضور خلال آخر 6 أشهر";
     await renderMonthlyTrend(startISO);
   } else {
     document.getElementById("tableTitle").textContent = `نسب الغياب حسب الأقسام — ${label}`;
-    document.getElementById("trendTitle").textContent = "توزيع الغياب حسب الحصص";
+    document.getElementById("trendTitle").textContent = "توزيع الحصص الضائعة حسب الحصص";
     renderHourTrend(stats);
   }
 
@@ -262,20 +257,18 @@ async function renderReport() {
 }
 
 function renderKPIs(s) {
+  const avgEvents = s.totalClasses ? (s.absenceEvents / s.totalClasses).toFixed(2) : "0";
   const cards = [
     { icon: "👥", val: s.totalStudents, label: "تلميذ مسجل" },
     { icon: "🏫", val: s.totalClasses, label: "قسم" },
-    { icon: "⏱️", val: s.totalPossible.toLocaleString("ar-DZ"), label: "إجمالي الحصص" },
-    { icon: "❌", val: s.totalAbsent.toLocaleString("ar-DZ"), label: "إجمالي الغيابات" },
+    { icon: "⏱️", val: s.totalPossible.toLocaleString("ar-DZ"), label: "إجمالي الحصص الممكنة" },
+    { icon: "👤", val: s.absenceEvents.toLocaleString("ar-DZ"), label: "حالات الغياب (أيام)" },
+    { icon: "❌", val: s.missedPeriods.toLocaleString("ar-DZ"), label: "الحصص الضائعة" },
     { icon: "✅", val: s.attendanceRate.toFixed(2) + "%", label: "نسبة الحضور" },
-    { icon: "📉", val: s.totalClasses ? (s.totalAbsent / s.totalClasses).toFixed(2) : "0", label: "متوسط الغياب للقسم" },
+    { icon: "📉", val: avgEvents, label: "متوسط حالات الغياب للقسم" }
   ];
   document.getElementById("kpiGrid").innerHTML = cards.map(c => `
-    <div class="kpi-card">
-      <div class="kicon">${c.icon}</div>
-      <div class="kval">${c.val}</div>
-      <div class="klabel">${c.label}</div>
-    </div>
+    <div class="kpi-card"><div class="kicon">${c.icon}</div><div class="kval">${c.val}</div><div class="klabel">${c.label}</div></div>
   `).join("");
 }
 
@@ -284,23 +277,19 @@ function renderClassTable(s) {
   document.getElementById("classTableBody").innerHTML = s.classRows.map(c => `
     <tr>
       <td>${c.name}</td>
-      <td>${c.absent}</td>
-      <td>
-        <div class="bar-cell">
-          <span>${c.rate.toFixed(1)}%</span>
-          <div class="bar-track"><div class="bar-fill" style="width:${(c.rate / maxRate) * 100}%"></div></div>
-        </div>
-      </td>
+      <td>${c.absenceEvents}</td>
+      <td>${c.missedPeriods}</td>
+      <td><div class="bar-cell"><span>${c.rate.toFixed(1)}%</span><div class="bar-track"><div class="bar-fill" style="width:${(c.rate / maxRate) * 100}%"></div></div></div></td>
     </tr>
   `).join("");
 }
 
 function renderTopList(s) {
-  const top3 = s.classRows.slice(0, 3);
+  const top3 = s.classRows.filter(c => c.absenceEvents > 0).slice(0, 3);
   document.getElementById("topList").innerHTML = top3.length ? top3.map((c, i) => `
     <div class="top-item">
       <span><span class="rank">${i + 1}</span>${c.name}</span>
-      <b style="color:var(--absent)">${c.rate.toFixed(1)}%</b>
+      <span><b style="color:var(--absent)">${c.absenceEvents}</b> حالة <span style="color:var(--ink-soft); margin-right:6px;">(${c.missedPeriods} حصة)</span></span>
     </div>
   `).join("") : `<div class="empty-state" style="padding:20px;">لا يوجد غياب مسجل في هذه الفترة ✅</div>`;
 }
@@ -314,32 +303,22 @@ function renderBarredList(s, isMonthly) {
     return;
   }
   document.getElementById("barredList").innerHTML = `
-    <table class="rtable">
-      <thead><tr><th>التلميذ</th><th>القسم</th></tr></thead>
-      <tbody>
-        ${s.barredToday.map(b => `<tr><td>${b.name}</td><td>${b.className}</td></tr>`).join("")}
-      </tbody>
-    </table>`;
+    <table class="rtable"><thead><tr><th>التلميذ</th><th>القسم</th></tr></thead>
+    <tbody>${s.barredToday.map(b => `<tr><td>${b.name}</td><td>${b.className}</td></tr>`).join("")}</tbody></table>`;
 }
 
 const CLASS_PALETTE = ["#2563EB","#C0392B","#D68C21","#3F7D5C","#8E5EA2","#4472C4","#B07AA1","#59A14F","#EDC948","#AF7AA1","#FF9D9A","#9C755F"];
 
 function renderStatusChart(s) {
   const ctx = document.getElementById("statusChart");
-  const withAbsences = s.classRows.filter(c => c.absent > 0).sort((a, b) => b.absent - a.absent);
+  const withAbsences = s.classRows.filter(c => c.missedPeriods > 0).sort((a, b) => b.missedPeriods - a.missedPeriods);
   const top = withAbsences.slice(0, 7);
   const rest = withAbsences.slice(7);
   const labels = top.map(c => c.name);
-  const data = top.map(c => c.absent);
-  if (rest.length > 0) {
-    labels.push("أقسام أخرى");
-    data.push(rest.reduce((sum, c) => sum + c.absent, 0));
-  }
+  const data = top.map(c => c.missedPeriods);
+  if (rest.length > 0) { labels.push("أقسام أخرى"); data.push(rest.reduce((sum, c) => sum + c.missedPeriods, 0)); }
   if (statusChartInst) statusChartInst.destroy();
-  if (data.length === 0) {
-    ctx.getContext("2d").clearRect(0, 0, ctx.width, ctx.height);
-    return;
-  }
+  if (data.length === 0) { ctx.getContext("2d").clearRect(0, 0, ctx.width, ctx.height); return; }
   statusChartInst = new Chart(ctx, {
     type: "doughnut",
     data: { labels, datasets: [{ data, backgroundColor: CLASS_PALETTE }] },
@@ -355,7 +334,7 @@ function renderHourTrend(s) {
   if (trendChartInst) trendChartInst.destroy();
   trendChartInst = new Chart(ctx, {
     type: "bar",
-    data: { labels, datasets: [{ label: "عدد الغيابات", data, backgroundColor: "#2563EB" }] },
+    data: { labels, datasets: [{ label: "الحصص الضائعة", data, backgroundColor: "#2563EB" }] },
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   });
 }
@@ -385,7 +364,6 @@ async function renderMonthlyTrend(currentMonthStartISO) {
   });
 }
 
-// ===== الطباعة =====
 document.getElementById("printBtn").addEventListener("click", () => {
   if (!lastStats) return;
   const s = lastStats;
@@ -394,65 +372,54 @@ document.getElementById("printBtn").addEventListener("click", () => {
   let html = `
   <html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>${title}</title>
   <style>
-    body{font-family:Arial,Tahoma,sans-serif; padding:26px; color:#111;}
-    .head{display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #111; padding-bottom:12px; margin-bottom:16px;}
-    .head h1{font-size:20px; margin:0;}
-    .head .side{font-size:13px; text-align:center;}
-    .sub{text-align:center; font-size:15px; font-weight:bold; margin-bottom:18px;}
-    .kpis{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px;}
-    .kpi{border:1px solid #999; border-radius:6px; padding:10px 16px; text-align:center; flex:1; min-width:110px;}
-    .kpi b{display:block; font-size:18px;}
-    .kpi span{font-size:11px; color:#444;}
-    table{width:100%; border-collapse:collapse; margin-bottom:18px;}
-    th,td{border:1px solid #999; padding:6px 8px; text-align:center; font-size:12.5px;}
-    th{background:#eee;}
-    .sign{display:flex; justify-content:space-between; margin-top:40px; font-size:13px;}
-    .sign div{text-align:center; width:30%;}
-    .line{border-top:1px solid #333; margin-top:36px; padding-top:4px;}
-    .footer{margin-top:24px; font-size:11px; color:#555; border-top:1px solid #ccc; padding-top:6px;}
+    body{font-family:Arial,Tahoma,sans-serif;padding:26px;color:#111}
+    .head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:16px}
+    .head h1{font-size:20px;margin:0}.head .side{font-size:13px;text-align:center}.sub{text-align:center;font-size:15px;font-weight:bold;margin-bottom:18px}
+    .kpis{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}.kpi{border:1px solid #999;border-radius:6px;padding:10px 16px;text-align:center;flex:1;min-width:110px}
+    .kpi b{display:block;font-size:18px}.kpi span{font-size:11px;color:#444}table{width:100%;border-collapse:collapse;margin-bottom:18px}
+    th,td{border:1px solid #999;padding:6px 8px;text-align:center;font-size:12.5px}th{background:#eee}
+    .sign{display:flex;justify-content:space-between;margin-top:40px;font-size:13px}.sign div{text-align:center;width:30%}
+    .line{border-top:1px solid #333;margin-top:36px;padding-top:4px}.footer{margin-top:24px;font-size:11px;color:#555;border-top:1px solid #ccc;padding-top:6px}
   </style></head><body>
     <div class="head">
-      <div class="side">${SCHOOL_NAME}<br>السنة الدراسية: ${SCHOOL_YEAR}</div>
-      <h1>${title}</h1>
+      <div class="side">\${SCHOOL_NAME}<br>السنة الدراسية: \${SCHOOL_YEAR}</div>
+      <h1>\${title}</h1>
       <div class="side">الجمهورية الجزائرية الديمقراطية الشعبية<br>وزارة التربية الوطنية</div>
     </div>
-    <div class="sub">${s.label}</div>
+    <div class="sub">\${s.label}</div>
     <div class="kpis">
-      <div class="kpi"><b>${s.totalStudents}</b><span>عدد التلاميذ المسجلين</span></div>
-      <div class="kpi"><b>${s.totalClasses}</b><span>عدد الأقسام</span></div>
-      <div class="kpi"><b>${s.totalPossible.toLocaleString("ar-DZ")}</b><span>إجمالي الحصص</span></div>
-      <div class="kpi"><b>${s.totalAbsent.toLocaleString("ar-DZ")}</b><span>إجمالي الغيابات</span></div>
-      <div class="kpi"><b>${s.attendanceRate.toFixed(2)}%</b><span>نسبة الحضور</span></div>
-      <div class="kpi"><b>${s.totalClasses ? (s.totalAbsent / s.totalClasses).toFixed(2) : 0}</b><span>متوسط الغياب للقسم</span></div>
+      <div class="kpi"><b>\${s.totalStudents}</b><span>عدد التلاميذ المسجلين</span></div>
+      <div class="kpi"><b>\${s.totalClasses}</b><span>عدد الأقسام</span></div>
+      <div class="kpi"><b>\${s.totalPossible.toLocaleString("ar-DZ")}</b><span>إجمالي الحصص الممكنة</span></div>
+      <div class="kpi"><b>\${s.absenceEvents.toLocaleString("ar-DZ")}</b><span>حالات الغياب (أيام)</span></div>
+      <div class="kpi"><b>\${s.missedPeriods.toLocaleString("ar-DZ")}</b><span>الحصص الضائعة</span></div>
+      <div class="kpi"><b>\${s.attendanceRate.toFixed(2)}%</b><span>نسبة الحضور</span></div>
+      <div class="kpi"><b>\${s.totalClasses ? (s.absenceEvents / s.totalClasses).toFixed(2) : 0}</b><span>متوسط حالات الغياب للقسم</span></div>
     </div>
     <table>
-      <tr><th>القسم</th><th>عدد التلاميذ</th><th>إجمالي الحصص</th><th>إجمالي الغياب</th><th>نسبة الغياب</th></tr>
-      ${s.classRows.map(c => `<tr><td>${c.name}</td><td>${c.students}</td><td>${c.possible}</td><td>${c.absent}</td><td>${c.rate.toFixed(2)}%</td></tr>`).join("")}
-      <tr style="font-weight:bold; background:#f5f5f5;">
-        <td>المجموع</td><td>${s.totalStudents}</td><td>${s.totalPossible}</td><td>${s.totalAbsent}</td>
-        <td>${(100 - s.attendanceRate).toFixed(2)}%</td>
-      </tr>
+      <tr><th>القسم</th><th>عدد التلاميذ</th><th>إجمالي الحصص الممكنة</th><th>حالات الغياب</th><th>الحصص الضائعة</th><th>نسبة الغياب</th></tr>
+      \${s.classRows.map(c => `<tr><td>\${c.name}</td><td>\${c.students}</td><td>\${c.possible}</td><td>\${c.absenceEvents}</td><td>\${c.missedPeriods}</td><td>\${c.rate.toFixed(2)}%</td></tr>`).join("")}
+      <tr style="font-weight:bold;background:#f5f5f5;"><td>المجموع</td><td>\${s.totalStudents}</td><td>\${s.totalPossible}</td><td>\${s.absenceEvents}</td><td>\${s.missedPeriods}</td><td>\${(100-s.attendanceRate).toFixed(2)}%</td></tr>
     </table>
     <table>
-      <tr><th>غياب</th><th>خروج استثنائي</th><th>المجموع</th></tr>
+      <tr><th>غياب</th><th>خروج استثنائي</th><th>الحصص الضائعة</th></tr>
       <tr>
-        <td>${s.statusCounts.plain} (${s.totalAbsent ? (s.statusCounts.plain / s.totalAbsent * 100).toFixed(1) : 0}%)</td>
-        <td>${s.statusCounts.exit} (${s.totalAbsent ? (s.statusCounts.exit / s.totalAbsent * 100).toFixed(1) : 0}%)</td>
-        <td>${s.totalAbsent}</td>
+        <td>\${s.statusCounts.plain} (\${s.missedPeriods ? (s.statusCounts.plain / s.missedPeriods * 100).toFixed(1) : 0}%)</td>
+        <td>\${s.statusCounts.exit} (\${s.missedPeriods ? (s.statusCounts.exit / s.missedPeriods * 100).toFixed(1) : 0}%)</td>
+        <td>\${s.missedPeriods}</td>
       </tr>
     </table>
-    ${!s.isMonthly ? `
-    <table>
-      <tr><th colspan="2">🚫 ممنوعون من الدخول غداً (بقوا غائبين دون تسوية حتى آخر حصة)</th></tr>
+    \${!s.isMonthly ? `
+    <table><tr><th colspan="2">🚫 ممنوعون من الدخول غداً (بقوا غائبين دون تسوية حتى آخر حصة)</th></tr>
       <tr><th>التلميذ</th><th>القسم</th></tr>
-      ${s.barredToday.length ? s.barredToday.map(b => `<tr><td>${b.name}</td><td>${b.className}</td></tr>`).join("") : `<tr><td colspan="2">لا يوجد</td></tr>`}
+      \${s.barredToday.length ? s.barredToday.map(b => `<tr><td>\${b.name}</td><td>\${b.className}</td></tr>`).join("") : `<tr><td colspan="2">لا يوجد</td></tr>`}
     </table>` : ""}
     <div class="sign">
-      <div>إمضاء المكلّف بالغياب<div class="line">${todayISO()}</div></div>
-      <div>إمضاء الناظر<div class="line">${todayISO()}</div></div>
+      <div>إمضاء المكلّف بالغياب<div class="line">\${todayISO()}</div></div>
+      <div>إمضاء الناظر<div class="line">\${todayISO()}</div></div>
       <div>ختم المؤسسة<div class="line">&nbsp;</div></div>
     </div>
-    <div class="footer">تم إنشاء هذا التقرير آلياً بواسطة نظام تسجيل الغيابات — ${new Date().toLocaleString("ar-DZ")}</div>
+    <div class="footer">تم إنشاء هذا التقرير آلياً بواسطة نظام تسجيل الغيابات — \${new Date().toLocaleString("ar-DZ")}</div>
   </body></html>`;
 
   const w = window.open("", "_blank");
