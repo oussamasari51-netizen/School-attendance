@@ -41,12 +41,10 @@
   }
   .slot-btn:active { transform: scale(0.92); }
   
-  /* الألوان الثابتة والواضحة من بعيد */
   .slot-btn.present { background: #22c55e !important; color: #fff !important; }
   .slot-btn.absent { background: #ef4444 !important; color: #fff !important; }
   .slot-btn.resolved { background: #f59e0b !important; color: #fff !important; }
   
-  /* إطار متقطع للتعديل المعلق قبل الضغط على حفظ */
   .slot-btn.modified {
     outline: 3px dashed #1e40af;
     outline-offset: 1px;
@@ -377,15 +375,20 @@ async function saveAllChanges() {
       const item = pendingChanges[key];
 
       if (item.status === "حاضر") {
-        // إذا عاد التلميذ حاضراً نحذف القيد ليكون حراً في الواجهات الأخرى
         await db.from("attendance_records")
           .delete()
           .eq("student_id", item.student_id)
           .eq("record_date", selectedDate)
           .eq("hour_slot", item.hour_slot);
       } else {
-        // إدراج أو تحديث في قاعدة البيانات ليظهر فوراً للناظر
-        await db.from("attendance_records").upsert({
+        const { data: existing } = await db.from("attendance_records")
+          .select("id")
+          .eq("student_id", item.student_id)
+          .eq("record_date", selectedDate)
+          .eq("hour_slot", item.hour_slot)
+          .maybeSingle();
+
+        const payload = {
           student_id: item.student_id,
           class_id: classId,
           record_date: selectedDate,
@@ -393,10 +396,20 @@ async function saveAllChanges() {
           status: item.status,
           recorded_by: profile.id,
           updated_at: new Date().toISOString()
-        }, { onConflict: "student_id,record_date,hour_slot" });
+        };
+
+        if (existing && existing.id) {
+          const { error: err } = await db.from("attendance_records")
+            .update(payload)
+            .eq("id", existing.id);
+          if (err) throw err;
+        } else {
+          const { error: err } = await db.from("attendance_records")
+            .insert([payload]);
+          if (err) throw err;
+        }
       }
 
-      // تثبيت اللون ومنع تصفير الشاشة
       if (item.btnRef) {
         item.btnRef.dataset.original = item.status;
         item.btnRef.classList.remove("modified");
@@ -409,9 +422,9 @@ async function saveAllChanges() {
 
   } catch (e) {
     console.error("خطأ الحفظ:", e);
-    alert("حدث خطأ أثناء الحفظ. يرجى التأكد من الاتصال بالإنترنت.");
-    saveBtn.disabled = false;
+    alert("حدث خطأ أثناء الحفظ: " + (e.message || "يرجى التأكد من اتصال الإنترنت والصلاحيات"));
   } finally {
+    saveBtn.disabled = false;
     saveBtn.textContent = "💾 حفظ التغييرات";
   }
 }
