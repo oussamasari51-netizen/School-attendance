@@ -1,8 +1,10 @@
-const CACHE_NAME = 'al-nazir-v3'; // رفع الإصدار لتدمير v2 العالق وتحديث الملفات
+const CACHE_NAME = 'al-nazir-v4'; // رفع الإصدار إلى v4 لتدمير v3 العالق على الهواتف
+
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './admin.html',
+  './teacher.html', // تم إضافته ليعمل بثبات على الهاتف
   './students.html',
   './teachers.html',
   './teachers.js',
@@ -13,7 +15,7 @@ const ASSETS_TO_CACHE = [
   './assets/config.js'
 ];
 
-// تثبيت وتجاوز الانتظار
+// 1. التثبيت وتجاوز الانتظار
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
@@ -21,7 +23,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// تنظيف الكاش القديم (v1 و v2) فوراً عند التفعيل
+// 2. تفعيل الحزمة الجديدة وحذف جميع النسخ القديمة
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -37,15 +39,26 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// استراتيجية الجلب: حاول الجلب من الشبكة أولاً مع تجاوز طلبات Supabase
+// 3. استراتيجية الجلب الصحيحة والمستقرة
 self.addEventListener('fetch', (event) => {
-  if (event.request.url.includes('supabase.co')) {
+  const reqUrl = event.request.url;
+
+  // أ) تجاوز Supabase وترك الشبكة تتعامل معها مباشرة وحياً 100%
+  if (reqUrl.includes('supabase.co')) {
+    event.respondWith(fetch(event.request));
     return;
   }
+
+  // ب) إهمال طلبات غير GET (مثل POST أو PUT) لتجنب أخطاء الكاش
+  if (event.request.method !== 'GET') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // ج) بالنسبة للملفات الثابتة (HTML/CSS/JS): جلب من الشبكة أولاً وتحديث الكاش
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // تحديث الكاش بالنسخة الجديدة فوراً
         if (networkResponse && networkResponse.status === 200) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -54,6 +67,6 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       })
-      .catch(() => caches.match(event.request)) // استخدام الكاش فقط عند انقطاع الإنترنت
+      .catch(() => caches.match(event.request)) // الاستعانة بالكاش فقط عند انقطاع الإنترنت
   );
 });
