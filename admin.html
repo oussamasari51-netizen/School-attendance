@@ -90,9 +90,9 @@ async function loadKpiStrip() {
     db.from("students").select("id", { count: "exact", head: true }).eq("active", true),
     db.from("classes").select("id", { count: "exact", head: true }),
     db.from("teachers").select("id", { count: "exact", head: true }),
-    db.from("attendance_records").select("status").eq("record_date", todayISO()),
+    db.from("attendance_records").select("student_id, status").eq("record_date", todayISO()),
   ]);
-  const absentToday = (todayRecs || []).filter(r => r.status !== "تسوية وضعية").length;
+  const absentToday = new Set((todayRecs || []).filter(r => r.status !== "تسوية وضعية").map(r => r.student_id)).size;
 
   const strip = document.getElementById("kpiStrip");
   strip.innerHTML = `
