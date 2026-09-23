@@ -7,7 +7,6 @@
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  /* تحسين التجاوب مع الهاتف */
   @media (max-width: 600px) {
     .topbar { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 12px; }
     .topbar .user-chip { align-self: flex-end; margin-top: -30px; }
@@ -15,7 +14,6 @@
     .toolbar-card > div { width: 100% !important; min-width: 100% !important; }
   }
 
-  /* تثبيت عمود الأسماء عند التمرير الأفقي */
   .matrix-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
   .matrix-table { width: 100%; border-collapse: separate; border-spacing: 0 4px; min-width: 600px; }
   .matrix-table th { background: var(--paper, #f1f5f9); padding: 8px; font-size: 12px; color: var(--ink-soft, #475569); border-bottom: 2px solid var(--line, #cbd5e1); text-align: center; }
@@ -46,6 +44,39 @@
   .slot-btn.absent { background: #ef4444; color: #fff; }
   .slot-btn.resolved { background: #f59e0b; color: #fff; }
   
+  /* تنسيق زر الحفظ والحالة المتميزة */
+  .slot-btn.modified {
+    outline: 2px dashed #2563eb;
+    outline-offset: 1px;
+  }
+
+  .save-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+
+  .btn-save {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+  }
+  .btn-save:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+  }
+
   .toolbar-card { background: var(--surface, #ffffff); border: 1px solid var(--line, #e2e8f0); border-radius: 12px; padding: 12px; margin-bottom: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 </style>
 </head>
@@ -86,6 +117,12 @@
     </div>
   </div>
 
+  <!-- شريط الحفظ العلوي -->
+  <div class="save-bar" id="saveBar">
+    <span id="changesStatus" style="font-size: 0.85rem; color: #1e40af;">لا توجد تغييرات معلقة</span>
+    <button id="saveBtn" class="btn-save" onclick="saveAllChanges()" disabled>💾 حفظ التغييرات</button>
+  </div>
+
   <div id="matrixContainer" class="matrix-table-wrapper">
     <div class="loading-text">اختر قسماً لبدء الرصد...</div>
   </div>
@@ -97,7 +134,8 @@
 let profile = null;
 let selectedDate = null;
 let currentDayPeriods = [];
-let isMatrixLoading = false; // لمنع التحميل المزدوج المستمر
+let isMatrixLoading = false;
+let pendingChanges = {}; // كائن لتخزين التعديلات قبل الحفظ
 
 function safeToast(msg) {
   if (typeof showToast === 'function') showToast(msg);
@@ -121,16 +159,19 @@ async function init() {
   picker.value = selectedDate;
   picker.max = selectedDate;
   
-  // الأحداث (Event Listeners) تم ربطها مرة واحدة فقط هنا
   picker.addEventListener("change", () => {
+    if (checkUnsavedChanges()) return;
     selectedDate = picker.value || todayISO();
     document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
     loadClassMatrix();
   });
 
-  document.getElementById("classSelector").addEventListener("change", loadClassMatrix);
+  document.getElementById("classSelector").addEventListener("change", () => {
+    if (checkUnsavedChanges()) return;
+    loadClassMatrix();
+  });
+  
   document.getElementById("studentSearch").addEventListener("keyup", filterStudents);
-
   document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
 
   const { data: classes } = await db.from("classes").select("id, name").order("name");
@@ -149,8 +190,18 @@ async function init() {
   }
 }
 
+function checkUnsavedChanges() {
+  if (Object.keys(pendingChanges).length > 0) {
+    const confirmLeave = confirm("توجد تغييرات غير محفوظة! هل تريد تجاهلها والانتقال؟");
+    if (!confirmLeave) return true; // إلغاء الانتقال
+    pendingChanges = {}; // تفريغ التغيرات
+    updateSaveUI();
+  }
+  return false;
+}
+
 async function loadClassMatrix() {
-  if (isMatrixLoading) return; // منع التكرار إذا كان جاري التحميل بالأنشطة السابقة
+  if (isMatrixLoading) return;
   
   const classId = document.getElementById("classSelector").value;
   const container = document.getElementById("matrixContainer");
@@ -161,6 +212,8 @@ async function loadClassMatrix() {
   }
 
   isMatrixLoading = true;
+  pendingChanges = {}; 
+  updateSaveUI();
 
   if (typeof getPeriodsForDay === 'function') {
     currentDayPeriods = getPeriodsForDay(selectedDate);
@@ -238,7 +291,7 @@ async function loadClassMatrix() {
         else if (status === "تسوية وضعية" || status === "خروج استثنائي") btnClass = "slot-btn resolved";
 
         html += `<td>
-          <button class="${btnClass}" data-studentid="${s.id}" data-slot="${p.slot}" onclick="toggleSlot(this)">
+          <button class="${btnClass}" data-studentid="${s.id}" data-slot="${p.slot}" data-original="${status}" onclick="toggleSlot(this)">
             ${p.slot}
           </button>
         </td>`;
@@ -257,30 +310,99 @@ async function loadClassMatrix() {
   }
 }
 
-async function toggleSlot(btn) {
+function toggleSlot(btn) {
   const studentId = btn.dataset.studentid;
   const slot = parseInt(btn.dataset.slot);
-  const classId = document.getElementById("classSelector").value;
+  const key = `${studentId}_${slot}`;
+
+  let nextStatus = "حاضر";
 
   if (btn.classList.contains("present")) {
-    btn.className = "slot-btn absent";
-    await db.from("attendance_records").upsert({
-      student_id: studentId, class_id: classId, record_date: selectedDate, hour_slot: slot, status: "غائب", recorded_by: profile.id
-    }, { onConflict: "student_id,record_date,hour_slot" });
-    safeToast("تم تسجيل الغياب ✓");
-
+    btn.className = "slot-btn absent modified";
+    nextStatus = "غائب";
   } else if (btn.classList.contains("absent")) {
-    btn.className = "slot-btn resolved";
-    await db.from("attendance_records").update({
-      status: "تسوية وضعية", updated_at: new Date().toISOString()
-    }).eq("student_id", studentId).eq("record_date", selectedDate).eq("hour_slot", slot);
-    safeToast("تم تسوية الوضعية ⚠️");
-
+    btn.className = "slot-btn resolved modified";
+    nextStatus = "تسوية وضعية";
   } else {
-    btn.className = "slot-btn present";
-    await db.from("attendance_records").delete()
-      .eq("student_id", studentId).eq("record_date", selectedDate).eq("hour_slot", slot);
-    safeToast("تم إلغاء الغياب 🟢");
+    btn.className = "slot-btn present modified";
+    nextStatus = "حاضر";
+  }
+
+  // إذا عادت الحالة للأصلية يُزال التعديل
+  if (nextStatus === btn.dataset.original) {
+    delete pendingChanges[key];
+    btn.classList.remove("modified");
+  } else {
+    pendingChanges[key] = {
+      student_id: studentId,
+      hour_slot: slot,
+      status: nextStatus
+    };
+  }
+
+  updateSaveUI();
+}
+
+function updateSaveUI() {
+  const count = Object.keys(pendingChanges).length;
+  const saveBtn = document.getElementById("saveBtn");
+  const statusLabel = document.getElementById("changesStatus");
+
+  if (count > 0) {
+    saveBtn.disabled = false;
+    statusLabel.style.color = "#d97706";
+    statusLabel.textContent = `⚠️ هناك (${count}) تعديلات غير محفوظة!`;
+  } else {
+    saveBtn.disabled = true;
+    statusLabel.style.color = "#1e40af";
+    statusLabel.textContent = "لا توجد تغييرات معلقة";
+  }
+}
+
+async function saveAllChanges() {
+  const classId = document.getElementById("classSelector").value;
+  const saveBtn = document.getElementById("saveBtn");
+  const keys = Object.keys(pendingChanges);
+
+  if (keys.length === 0) return;
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = "جاري الحفظ...";
+
+  try {
+    for (const key of keys) {
+      const item = pendingChanges[key];
+
+      if (item.status === "حاضر") {
+        // حذف حالة الغياب إذا عاد التلميذ حاضراً
+        await db.from("attendance_records")
+          .delete()
+          .eq("student_id", item.student_id)
+          .eq("record_date", selectedDate)
+          .eq("hour_slot", item.hour_slot);
+      } else {
+        // إضافة أو تحديث الغياب / تسوية الوضعية
+        await db.from("attendance_records").upsert({
+          student_id: item.student_id,
+          class_id: classId,
+          record_date: selectedDate,
+          hour_slot: item.hour_slot,
+          status: item.status,
+          recorded_by: profile.id
+        }, { onConflict: "student_id,record_date,hour_slot" });
+      }
+    }
+
+    safeToast("تم حفظ جميع التغييرات بنجاح ✓");
+    pendingChanges = {};
+    saveBtn.textContent = "💾 حفظ التغييرات";
+    loadClassMatrix(); // إعادة تحميل الحالة المؤكدة من قاعدة البيانات
+
+  } catch (e) {
+    console.error(e);
+    alert("حدث خطأ أثناء حفظ البيانات، يرجى المحاولة مجدداً.");
+    saveBtn.disabled = false;
+    saveBtn.textContent = "💾 حفظ التغييرات";
   }
 }
 
