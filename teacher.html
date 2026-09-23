@@ -6,6 +6,13 @@
 <title>تسجيل الغياب — نظام الغيابات</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .rail-stop.has-records { border-bottom: 3px solid var(--primary, #2563eb); }
+  .rail-stop.has-records .dot { background: #22c55e !important; }
+  .class-card .stat.has-absent { color: #ef4444; font-weight: bold; }
+  .class-card .stat.all-present { color: #10b981; font-weight: 500; }
+  .quick-tools { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 8px 12px; background: var(--surface, #fff); border-radius: 8px; }
+</style>
 </head>
 <body>
 
@@ -40,7 +47,17 @@
 
   <div id="classSection" style="display:none;">
     <div class="section-title" id="classTitle"></div>
+    
+    <div class="quick-tools">
+      <div>
+        <button class="btn-ghost" style="font-size:12px; padding:4px 8px;" onclick="selectAllStudents(true)">تحديد الكل كغائب</button>
+        <button class="btn-ghost" style="font-size:12px; padding:4px 8px;" onclick="selectAllStudents(false)">إلغاء تحديد الكل</button>
+      </div>
+      <span id="selectedCount" style="font-size:12px; font-weight:bold; color:var(--primary);">0 غائبين محددين</span>
+    </div>
+
     <div class="student-list" id="studentList"></div>
+    
     <div style="margin-top:18px; display:flex; gap:10px; justify-content:flex-start;">
       <button class="btn-primary" id="submitBtn">إرسال الغيابات</button>
       <button class="btn-ghost" id="backBtn">رجوع لاختيار قسم آخر</button>
@@ -58,6 +75,7 @@ let selectedDate = null;
 let classesCache = [];
 let currentStudents = [];
 let checkedIds = new Set();
+let dayAttendanceMap = {}; // تخزين الغيابات اليومية كاش
 
 const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
@@ -67,31 +85,43 @@ function fmtDateOf(iso) {
 }
 
 async function init() {
-  profile = await requireSession("teacher");
+  profile = await requireSession(["teacher", "supervisor", "admin"]);
   if (!profile) return;
 
   document.getElementById("teacherName").textContent = profile.full_name;
   selectedDate = todayISO();
   const picker = document.getElementById("datePicker");
   picker.value = selectedDate;
-  picker.max = todayISO(); // لا يمكن تسجيل غياب ليوم لم يأتِ بعد
+  picker.max = todayISO();
   picker.addEventListener("change", onDateChange);
 
   const { data: classes } = await db.from("classes").select("id, name").order("name");
   classesCache = classes || [];
 
-  loadDay();
+  await loadDay();
 }
 
-function onDateChange() {
+async function onDateChange() {
   selectedDate = document.getElementById("datePicker").value || todayISO();
   selectedClass = null;
   document.getElementById("classSection").style.display = "none";
-  loadDay();
+  await loadDay();
 }
 
-function loadDay() {
+async function loadDay() {
   document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
+  
+  // جلب غيابات اليوم دفعة واحدة لتحسين الأداء
+  const { data: records } = await db.from("attendance_records")
+    .select("class_id, hour_slot, status")
+    .eq("record_date", selectedDate);
+    
+  dayAttendanceMap = {};
+  (records || []).forEach(r => {
+    const key = `${r.class_id}_${r.hour_slot}`;
+    if (!dayAttendanceMap[key]) dayAttendanceMap[key] = [];
+    dayAttendanceMap[key].push(r.status);
+  });
 
   const dayPeriods = getPeriodsForDay(selectedDate);
   document.querySelector(".periods-rail").style.display = "block";
@@ -120,10 +150,15 @@ function renderRail() {
   const track = document.getElementById("railTrack");
   track.innerHTML = "";
   getPeriodsForDay(selectedDate).forEach(p => {
+    let hasRecs = false;
+    classesCache.forEach(c => {
+      if (dayAttendanceMap[`${c.id}_${p.slot}`]) hasRecs = true;
+    });
+
     const btn = document.createElement("button");
-    btn.className = "rail-stop" + (selectedSlot === p.slot ? " active" : "");
+    btn.className = "rail-stop" + (selectedSlot === p.slot ? " active" : "") + (hasRecs ? " has-records" : "");
     btn.innerHTML = `<div class="dot"></div><div class="label">${p.label}</div>`;
-    btn.onclick = () => { selectedSlot = p.slot; renderRail(); if (selectedClass) selectClass(selectedClass); };
+    btn.onclick = () => { selectedSlot = p.slot; renderRail(); renderClassGrid(); if (selectedClass) selectClass(selectedClass); };
     track.appendChild(btn);
   });
 }
@@ -136,9 +171,21 @@ function renderClassGrid() {
     return;
   }
   classesCache.forEach(c => {
+    const list = dayAttendanceMap[`${c.id}_${selectedSlot}`] || [];
+    const absentCount = list.filter(s => s === "غائب").length;
+    
+    let statHtml = `<span class="txt">اضغط لتسجيل الغياب</span>`;
+    if (list.length > 0) {
+      if (absentCount > 0) {
+        statHtml = `<span class="stat has-absent">⚠️ غائبون: ${absentCount}</span>`;
+      } else {
+        statHtml = `<span class="stat all-present">✓ الجميع حاضرون</span>`;
+      }
+    }
+
     const card = document.createElement("div");
     card.className = "class-card";
-    card.innerHTML = `<div class="cname">${c.name}</div><div class="stat zero"><span class="txt">اضغط لتسجيل الغياب</span></div>`;
+    card.innerHTML = `<div class="cname">${c.name}</div><div class="stat">${statHtml}</div>`;
     card.onclick = () => selectClass(c);
     grid.appendChild(card);
   });
@@ -182,6 +229,7 @@ function renderStudentList() {
     list.innerHTML = `<div class="empty-state"><div class="icon">👥</div>لا يوجد تلاميذ في هذا القسم بعد.</div>`;
     return;
   }
+
   currentStudents.forEach(s => {
     const existingRec = (window.__existingRecords || []).find(r => r.student_id === s.id);
     const isOtherStatus = existingRec && existingRec.status !== "غائب";
@@ -209,6 +257,22 @@ function renderStudentList() {
     }
     list.appendChild(row);
   });
+
+  document.getElementById("selectedCount").textContent = `${checkedIds.size} غائبين محددين`;
+}
+
+function selectAllStudents(select) {
+  if (select) {
+    currentStudents.forEach(s => {
+      const existingRec = (window.__existingRecords || []).find(r => r.student_id === s.id);
+      if (!existingRec || existingRec.status === "غائب") {
+        checkedIds.add(s.id);
+      }
+    });
+  } else {
+    checkedIds.clear();
+  }
+  renderStudentList();
 }
 
 document.getElementById("backBtn").addEventListener("click", () => {
@@ -257,7 +321,8 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
   showToast("تم إرسال الغيابات بنجاح ✓");
   btn.disabled = false;
   btn.textContent = "إرسال الغيابات";
-  selectClass(selectedClass);
+  await loadDay();
+  if (selectedClass) selectClass(selectedClass);
 });
 
 init();
