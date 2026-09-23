@@ -3,44 +3,50 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تسجيل الدخول — برنامج الناظر</title>
+<title>تسجيل الدخول — نظام إدارة الغيابات</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
+<body class="login-body">
 
-<div class="auth-wrap">
-  <div class="auth-card">
-    <div class="auth-badge">📋</div>
-    <h1>برنامج الناظر</h1>
-    <p class="sub">سجّل الدخول بحسابك الخاص كمكلّف بالغياب أو كناظر</p>
-
-    <div class="auth-error" id="errBox"></div>
-
-    <form id="loginForm">
-      <div class="field">
-        <label>البريد الإلكتروني</label>
-        <input type="email" id="email" required placeholder="example@school.dz">
-      </div>
-      <div class="field">
-        <label>كلمة السر</label>
-        <input type="password" id="password" required placeholder="••••••••">
-      </div>
-      <button type="submit" class="btn-primary" id="loginBtn" style="width:100%;margin-top:6px;">
-        دخول
-      </button>
-    </form>
+<div class="login-card">
+  <div class="brand-header">
+    <div class="brand-icon">🏫</div>
+    <h2>نظام إدارة الغيابات</h2>
+    <p>يرجى تسجيل الدخول للمتابعة</p>
   </div>
+
+  <div id="errBox" class="alert-error" style="display:none;"></div>
+
+  <form id="loginForm">
+    <div class="field">
+      <label for="email">البريد الإلكتروني</label>
+      <input type="email" id="email" required placeholder="example@school.dz" dir="ltr">
+    </div>
+
+    <div class="field">
+      <label for="password">كلمة السر</label>
+      <input type="password" id="password" required placeholder="••••••••">
+    </div>
+
+    <button type="submit" id="loginBtn" class="btn-primary" style="width:100%; margin-top:10px;">دخول</button>
+  </form>
 </div>
 
 <script src="assets/config.js"></script>
 <script>
-  // إذا كان المستخدم مسجّل دخوله مسبقاً، حوّله مباشرة
+  // التحقق المباشر من الجلسة والتوجيه تلقائياً
   (async () => {
     const { data: { session } } = await db.auth.getSession();
     if (session) {
       const { data: profile } = await db.from("users").select("role").eq("auth_id", session.user.id).single();
-      if (profile) window.location.href = profile.role === "teacher" ? "teacher.html" : "admin.html";
+      if (profile) {
+        if (profile.role === "teacher" || profile.role === "supervisor") {
+          window.location.href = "teacher.html";
+        } else {
+          window.location.href = "admin.html";
+        }
+      }
     }
   })();
 
@@ -82,7 +88,12 @@
       return;
     }
 
-    window.location.href = profile.role === "teacher" ? "teacher.html" : "admin.html";
+    // توجيه الأستاذ والمكلف بالغياب لصفحة teacher.html والبقية لصفحة الناظر
+    if (profile.role === "teacher" || profile.role === "supervisor") {
+      window.location.href = "teacher.html";
+    } else {
+      window.location.href = "admin.html";
+    }
   });
 </script>
 <div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
