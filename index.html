@@ -3,262 +3,179 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تسجيل الغياب — شبكة اليوم الكامل</title>
+<title>تسجيل الدخول — نظام إدارة الغيابات</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  .matrix-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
-  .matrix-table th { background: var(--paper, #f1f5f9); padding: 10px; font-size: 13px; color: var(--ink-soft, #475569); border-bottom: 2px solid var(--line, #cbd5e1); text-align: center; }
-  .matrix-table td { background: var(--surface, #ffffff); padding: 8px 12px; text-align: center; vertical-align: middle; }
-  .matrix-table tr td:first-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; text-align: right; }
-  .matrix-table tr td:last-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
-  
-  .slot-btn {
-    width: 38px; height: 38px; border-radius: 8px; border: none; font-weight: bold; font-size: 13px; cursor: pointer;
-    transition: transform 0.15s ease, background 0.2s ease; display: inline-flex; align-items: center; justify-content: center; margin: 0 2px;
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--bg, #f8fafc);
+    margin: 0;
+    padding: 16px;
   }
-  .slot-btn:hover { transform: translateY(-2px); }
-  .slot-btn:active { transform: scale(0.92); }
-  .slot-btn.present { background: #22c55e; color: #fff; }
-  .slot-btn.absent { background: #ef4444; color: #fff; }
-  .slot-btn.resolved { background: #f59e0b; color: #fff; }
-  
-  .toolbar-card { background: var(--surface, #ffffff); border: 1px solid var(--line, #e2e8f0); border-radius: 12px; padding: 16px; margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .login-card {
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--line, #e2e8f0);
+    border-radius: 16px;
+    padding: 32px 24px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
+  }
+  .login-header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .login-header .icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+  }
+  .login-header h1 {
+    font-size: 1.4rem;
+    color: var(--ink, #0f172a);
+    margin: 0 0 4px 0;
+  }
+  .login-header p {
+    font-size: 0.85rem;
+    color: var(--ink-soft, #64748b);
+    margin: 0;
+  }
+  .form-group {
+    margin-bottom: 16px;
+  }
+  .form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: var(--ink-soft, #475569);
+    margin-bottom: 6px;
+  }
+  .form-group input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line, #cbd5e1);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus {
+    outline: none;
+    border-color: #2563eb;
+  }
+  .btn-submit {
+    width: 100%;
+    padding: 12px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-submit:hover {
+    background: #1d4ed8;
+  }
+  .error-msg {
+    color: #ef4444;
+    font-size: 0.85rem;
+    text-align: center;
+    margin-top: 12px;
+    display: none;
+  }
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <div class="brand">
-    <div class="icon">📋</div>
-    <div>
-      <h1>تسجيل الغياب (شبكة اليوم الكامل)</h1>
-      <div class="meta" id="dateLabel"></div>
-    </div>
-  </div>
-  <div class="user-chip">
-    <span id="teacherName">...</span>
-    <button onclick="logout()">خروج</button>
-  </div>
-</div>
-
-<div class="page">
-
-  <div class="toolbar-card">
-    <div style="flex:1; min-width:160px;">
-      <label style="font-size:12px; font-weight:bold; color:var(--ink-soft,#64748b); display:block; margin-bottom:4px;">التاريخ</label>
-      <input type="date" id="datePicker" class="datepick-inline" style="width:100%;">
-    </div>
-
-    <div style="flex:1; min-width:180px;">
-      <label style="font-size:12px; font-weight:bold; color:var(--ink-soft,#64748b); display:block; margin-bottom:4px;">القسم</label>
-      <select id="classSelector" onchange="loadClassMatrix()">
-        <option value="">جاري التحميل...</option>
-      </select>
-    </div>
-
-    <div style="flex:2; min-width:200px;">
-      <label style="font-size:12px; font-weight:bold; color:var(--ink-soft,#64748b); display:block; margin-bottom:4px;">🔍 البحث عن تلميذ</label>
-      <input type="text" id="studentSearch" placeholder="اكتب اسم التلميذ هنا..." onkeyup="filterStudents()">
-    </div>
+<div class="login-card">
+  <div class="login-header">
+    <div class="icon">🏫</div>
+    <h1>تسجيل الدخول</h1>
+    <p>أدخل اسم المستخدم وكلمة المرور للمتابعة</p>
   </div>
 
-  <div id="matrixContainer" style="overflow-x:auto;">
-    <div class="loading-text">اختر قسماً لبدء الرصد...</div>
-  </div>
+  <form id="loginForm" onsubmit="handleLogin(event)">
+    <div class="form-group">
+      <label for="username">اسم المستخدم</label>
+      <input type="text" id="username" required placeholder="أدخل اسم المستخدم..." autocomplete="username">
+    </div>
 
+    <div class="form-group">
+      <label for="password">كلمة المرور</label>
+      <input type="password" id="password" required placeholder="••••••••" autocomplete="current-password">
+    </div>
+
+    <button type="submit" class="btn-submit" id="submitBtn">دخول</button>
+    <div id="errorMsg" class="error-msg"></div>
+  </form>
 </div>
 
 <script src="assets/config.js"></script>
 <script>
-let profile = null;
-let selectedDate = null;
-let currentDayPeriods = [];
+async function handleLogin(e) {
+  e.preventDefault();
+  const userInp = document.getElementById("username").value.trim();
+  const passInp = document.getElementById("password").value.trim();
+  const errDiv = document.getElementById("errorMsg");
+  const btn = document.getElementById("submitBtn");
 
-function safeToast(msg) {
-  if (typeof showToast === 'function') showToast(msg);
-  else console.log(msg);
-}
+  errDiv.style.display = "none";
+  btn.disabled = true;
+  btn.textContent = "جاري التحقق...";
 
-function fmtDateOf(iso) {
-  const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-  const d = new Date(iso + "T00:00:00");
-  return `${dayNames[d.getDay()]} — ${d.toLocaleDateString("ar-DZ")}`;
-}
+  try {
+    // الاستعلام عن حساب المستخدم من جدول الدخول
+    const { data, error } = await db
+      .from("profiles")
+      .select("*")
+      .eq("username", userInp)
+      .eq("password", passInp)
+      .maybeSingle();
 
-async function init() {
-  profile = await requireSession(["teacher", "supervisor", "admin"]);
-  if (!profile) return;
+    if (error || !data) {
+      errDiv.textContent = "اسم المستخدم أو كلمة المرور غير صحيحة.";
+      errDiv.style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "دخول";
+      return;
+    }
 
-  document.getElementById("teacherName").textContent = profile.full_name;
+    // حفظ الجلسة محلياً والتوجيه حسب الرتبة
+    localStorage.setItem("session_user", JSON.stringify(data));
 
-  selectedDate = (typeof todayISO === 'function') ? todayISO() : new Date().toISOString().split("T")[0];
-  const picker = document.getElementById("datePicker");
-  picker.value = selectedDate;
-  picker.max = selectedDate;
-  
-  picker.addEventListener("change", () => {
-    selectedDate = picker.value || todayISO();
-    document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
-    loadClassMatrix();
-  });
+    if (data.role === "admin" || data.role === "supervisor") {
+      window.location.href = "duty.html";
+    } else {
+      window.location.href = "teacher.html";
+    }
 
-  document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
-
-  const { data: classes } = await db.from("classes").select("id, name").order("name");
-  const classSelector = document.getElementById("classSelector");
-  classSelector.innerHTML = "";
-  if (classes && classes.length > 0) {
-    classes.forEach(c => {
-      const opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.name;
-      classSelector.appendChild(opt);
-    });
-    loadClassMatrix();
-  } else {
-    classSelector.innerHTML = `<option value="">لا توجد أقسام</option>`;
+  } catch (err) {
+    console.error(err);
+    errDiv.textContent = "حدث خطأ في الإتصال بالقاعدة.";
+    errDiv.style.display = "block";
+    btn.disabled = false;
+    btn.textContent = "دخول";
   }
 }
 
-async function loadClassMatrix() {
-  const classId = document.getElementById("classSelector").value;
-  const container = document.getElementById("matrixContainer");
-
-  if (!classId) {
-    container.innerHTML = `<div class="empty-state"><div class="icon">🏫</div>يرجى اختيار قسم لمتابعة الغيابات.</div>`;
-    return;
-  }
-
-  // التكيف مع أيام الأسبوع (الثلاثاء والعطل)
-  if (typeof getPeriodsForDay === 'function') {
-    currentDayPeriods = getPeriodsForDay(selectedDate);
-  } else {
-    const d = new Date(selectedDate + "T00:00:00");
-    const dayOfWeek = d.getDay();
-    if (dayOfWeek === 5 || dayOfWeek === 6) { // الجمعة أو السبت
-      currentDayPeriods = [];
-    } else if (dayOfWeek === 2) { // الثلاثاء (4 حصص فقط)
-      currentDayPeriods = [
-        { slot: 1, label: "ح1", time: "08:00 - 09:00" },
-        { slot: 2, label: "ح2", time: "09:00 - 10:00" },
-        { slot: 3, label: "ح3", time: "10:15 - 11:15" },
-        { slot: 4, label: "ح4", time: "11:15 - 12:15" }
-      ];
-    } else { // بقية الأيام
-      currentDayPeriods = [
-        { slot: 1, label: "ح1", time: "08:00 - 09:00" },
-        { slot: 2, label: "ح2", time: "09:00 - 10:00" },
-        { slot: 3, label: "ح3", time: "10:15 - 11:15" },
-        { slot: 4, label: "ح4", time: "11:15 - 12:15" },
-        { slot: 5, label: "ح5", time: "13:00 - 14:00" },
-        { slot: 6, label: "ح6", time: "14:00 - 15:00" },
-        { slot: 7, label: "ح7", time: "15:15 - 16:15" }
-      ];
+// التوجيه تلقائياً إذا كان المستخدم مسجلاً دخوله بالفعل
+document.addEventListener("DOMContentLoaded", () => {
+  const session = localStorage.getItem("session_user");
+  if (session) {
+    const user = JSON.parse(session);
+    if (user.role === "admin" || user.role === "supervisor") {
+      window.location.href = "duty.html";
+    } else if (user.role === "teacher") {
+      window.location.href = "teacher.html";
     }
   }
-
-  if (!currentDayPeriods || currentDayPeriods.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="icon">🏖️</div>عطلة أسبوعية — لا توجد حصص مبرمجة في هذا اليوم.</div>`;
-    return;
-  }
-
-  container.innerHTML = `<div class="loading-text">جاري تحميل شبكة غيابات اليوم...</div>`;
-
-  const [{ data: students }, { data: records }] = await Promise.all([
-    db.from("students").select("id, full_name").eq("class_id", classId).eq("active", true).order("full_name"),
-    db.from("attendance_records").select("id, student_id, hour_slot, status").eq("class_id", classId).eq("record_date", selectedDate)
-  ]);
-
-  if (!students || students.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="icon">👤</div>لا يوجد تلاميذ مسجلون في هذا القسم.</div>`;
-    return;
-  }
-
-  const recMap = {};
-  (records || []).forEach(r => {
-    recMap[`${r.student_id}_${r.hour_slot}`] = { id: r.id, status: r.status };
-  });
-
-  let html = `
-    <table class="matrix-table">
-      <thead>
-        <tr>
-          <th style="width: 220px; text-align: right;">اسم التلميذ</th>`;
-  
-  currentDayPeriods.forEach(p => {
-    html += `<th>${p.label}<br><span style="font-size:10px; opacity:0.8;">${p.time}</span></th>`;
-  });
-
-  html += `</tr></thead><tbody id="matrixBody">`;
-
-  students.forEach(s => {
-    html += `<tr class="student-item" data-name="${s.full_name}">
-      <td style="font-weight: bold;">${s.full_name}</td>`;
-
-    currentDayPeriods.forEach(p => {
-      const rec = recMap[`${s.student_id}_${p.slot}`];
-      const status = rec ? rec.status : "حاضر";
-      let btnClass = "slot-btn present";
-      if (status === "غائب") btnClass = "slot-btn absent";
-      else if (status === "تسوية وضعية" || status === "خروج استثنائي") btnClass = "slot-btn resolved";
-
-      html += `<td>
-        <button class="${btnClass}" data-studentid="${s.id}" data-slot="${p.slot}" onclick="toggleSlot(this)">
-          ${p.slot}
-        </button>
-      </td>`;
-    });
-
-    html += `</tr>`;
-  });
-
-  html += `</tbody></table>`;
-  container.innerHTML = html;
-  filterStudents(); // إعادة ضبط التصفية إذا كان هناك نص مكتوب
-}
-
-async function toggleSlot(btn) {
-  const studentId = btn.dataset.studentid;
-  const slot = parseInt(btn.dataset.slot);
-  const classId = document.getElementById("classSelector").value;
-
-  // 1. من حاضر (أخضر) -> غائب (أحمر)
-  if (btn.classList.contains("present")) {
-    btn.className = "slot-btn absent";
-    await db.from("attendance_records").upsert({
-      student_id: studentId, class_id: classId, record_date: selectedDate, hour_slot: slot, status: "غائب", recorded_by: profile.id
-    }, { onConflict: "student_id,record_date,hour_slot" });
-    safeToast("تم تسجيل الغياب ✓");
-
-  // 2. من غائب (أحمر) -> تسوية وضعية (أصفر)
-  } else if (btn.classList.contains("absent")) {
-    btn.className = "slot-btn resolved";
-    await db.from("attendance_records").update({
-      status: "تسوية وضعية", updated_at: new Date().toISOString()
-    }).eq("student_id", studentId).eq("record_date", selectedDate).eq("hour_slot", slot);
-    safeToast("تم تسجيل تسوية الوضعية ⚠️");
-
-  // 3. من تسوية وضعية (أصفر) -> حاضر (أخضر)
-  } else {
-    btn.className = "slot-btn present";
-    await db.from("attendance_records").delete()
-      .eq("student_id", studentId).eq("record_date", selectedDate).eq("hour_slot", slot);
-    safeToast("تم إلغاء الغياب (حاضر) 🟢");
-  }
-}
-
-function filterStudents() {
-  const q = document.getElementById("studentSearch").value.toLowerCase().trim();
-  const rows = document.querySelectorAll(".student-item");
-  rows.forEach(row => {
-    const name = row.dataset.name.toLowerCase();
-    row.style.display = name.includes(q) ? "" : "none";
-  });
-}
-
-document.addEventListener("DOMContentLoaded", init);
+});
 </script>
-<div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
+
 </body>
 </html>
