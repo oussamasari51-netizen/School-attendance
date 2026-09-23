@@ -1,162 +1,34 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>لوحة الناظر — نظام الغيابات</title>
-<link rel="stylesheet" href="assets/style.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-  /* تنسيقات شبكة الأزرار المباشرة */
-  .matrix-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0 8px;
-  }
-  .matrix-table th {
-    background: var(--glass-bg);
-    padding: 10px;
-    font-size: 13px;
-    color: var(--ink-soft);
-    border-bottom: 2px solid var(--line);
-    text-align: center;
-  }
-  .matrix-table td {
-    background: var(--surface);
-    padding: 8px 12px;
-    text-align: center;
-    vertical-align: middle;
-  }
-  .matrix-table tr td:first-child {
-    border-top-right-radius: 10px;
-    border-bottom-right-radius: 10px;
-    text-align: right;
-  }
-  .matrix-table tr td:last-child {
-    border-top-left-radius: 10px;
-    border-bottom-left-radius: 10px;
-  }
-  .slot-btn {
-    width: 38px;
-    height: 38px;
-    border-radius: 8px;
-    border: none;
-    font-weight: bold;
-    font-size: 13px;
-    cursor: pointer;
-    transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 2px;
-  }
-  .slot-btn:hover { transform: translateY(-2px); }
-  .slot-btn:active { transform: scale(0.92); }
-  .slot-btn.present { background: #22c55e; color: #fff; box-shadow: 0 2px 6px rgba(34,197,94,0.3); } /* أخضر */
-  .slot-btn.absent { background: #ef4444; color: #fff; box-shadow: 0 2px 6px rgba(239,68,68,0.3); }  /* أحمر */
-  .slot-btn.resolved { background: #f59e0b; color: #fff; box-shadow: 0 2px 6px rgba(245,158,11,0.3); } /* أصفر */
-  
-  .toolbar-card {
-    background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius);
-    padding: 16px;
-    margin-bottom: 20px;
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-</style>
-</head>
-<body>
-
-<div class="app-shell">
-<div id="sidebarMount"></div>
-<div class="main-area">
-
-<div class="topbar">
-  <div class="brand">
-    <div class="icon">📋</div>
-    <div>
-      <h1>لوحة الناظر — التسجيل بالشبكة</h1>
-      <div class="meta" id="dateLabel"></div>
-    </div>
-  </div>
-  <div class="user-chip">
-    <span id="adminName">...</span>
-    <button onclick="logout()">خروج</button>
-  </div>
-</div>
-
-<div class="page">
-
-  <!-- شريط الإحصائيات -->
-  <div class="kpi-strip" id="kpiStrip">
-    <div class="kpi-mini"><div class="kval">…</div><div class="klabel">تلميذ مسجّل</div></div>
-    <div class="kpi-mini"><div class="kval">…</div><div class="klabel">قسم</div></div>
-    <div class="kpi-mini"><div class="kval">…</div><div class="klabel">أستاذ</div></div>
-    <div class="kpi-mini"><div class="kval">…</div><div class="klabel">غياب اليوم</div></div>
-  </div>
-
-  <!-- أدوات التحكم والفلترة -->
-  <div class="toolbar-card">
-    <div style="flex:1; min-width:180px;">
-      <label style="font-size:12px; font-weight:bold; color:var(--ink-soft); display:block; margin-bottom:4px;">التاريخ</label>
-      <input type="date" id="datePicker" class="datepick-inline" style="width:100%;">
-    </div>
-
-    <div style="flex:1; min-width:200px;">
-      <label style="font-size:12px; font-weight:bold; color:var(--ink-soft); display:block; margin-bottom:4px;">القسم</label>
-      <select id="classSelector" onchange="loadClassMatrix()">
-        <option value="">جاري التحميل...</option>
-      </select>
-    </div>
-
-    <div style="flex:2; min-width:220px;">
-      <label style="font-size:12px; font-weight:bold; color:var(--ink-soft); display:block; margin-bottom:4px;">🔍 بحث سريع عن تلميذ</label>
-      <input type="text" id="studentSearch" placeholder="اكتب اسم التلميذ هنا..." onkeyup="filterStudents()">
-    </div>
-
-    <div style="align-self:flex-end;">
-      <a href="reports.html" class="btn-primary" style="text-decoration:none; display:inline-block; padding:10px 16px;">📊 التقارير</a>
-    </div>
-  </div>
-
-  <!-- شبكة الغيابات المباشرة -->
-  <div id="matrixContainer" style="overflow-x:auto;">
-    <div class="loading-text">اختر قسماً لعرض شبكة الغيابات...</div>
-  </div>
-
-</div>
-
-</div><!-- /main-area -->
-</div><!-- /app-shell -->
-
+<!-- استدعاء ملفات الإعدادات والجانبيات مع التأكد من وجودها داخل مجلد assets -->
 <script src="assets/config.js"></script>
 <script src="assets/sidebar.js"></script>
+
 <script>
 let profile = null;
 let selectedDate = null;
 let currentDayPeriods = [];
 
 async function loadKpiStrip() {
-  const [{ count: studentCount }, { count: classCount }, { count: teacherCount }, { data: todayRecs }] = await Promise.all([
-    db.from("students").select("id", { count: "exact", head: true }).eq("active", true),
-    db.from("classes").select("id", { count: "exact", head: true }),
-    db.from("teachers").select("id", { count: "exact", head: true }),
-    db.from("attendance_records").select("student_id, status").eq("record_date", selectedDate),
-  ]);
-  const absentToday = new Set((todayRecs || []).filter(r => r.status !== "تسوية وضعية").map(r => r.student_id)).size;
+  try {
+    const [{ count: studentCount }, { count: classCount }, { count: teacherCount }, { data: todayRecs }] = await Promise.all([
+      db.from("students").select("id", { count: "exact", head: true }).eq("active", true),
+      db.from("classes").select("id", { count: "exact", head: true }),
+      db.from("teachers").select("id", { count: "exact", head: true }),
+      db.from("attendance_records").select("student_id, status").eq("record_date", selectedDate),
+    ]);
+    const absentToday = new Set((todayRecs || []).filter(r => r.status !== "تسوية وضعية").map(r => r.student_id)).size;
 
-  const strip = document.getElementById("kpiStrip");
-  strip.innerHTML = `
-    <div class="kpi-mini"><div class="kval">${studentCount ?? 0}</div><div class="klabel">تلميذ مسجّل</div></div>
-    <div class="kpi-mini"><div class="kval">${classCount ?? 0}</div><div class="klabel">قسم</div></div>
-    <div class="kpi-mini"><div class="kval">${teacherCount ?? 0}</div><div class="klabel">أستاذ</div></div>
-    <div class="kpi-mini"><div class="kval">${absentToday}</div><div class="klabel">غياب اليوم</div></div>
-  `;
+    const strip = document.getElementById("kpiStrip");
+    if (strip) {
+      strip.innerHTML = `
+        <div class="kpi-mini"><div class="kval">${studentCount ?? 0}</div><div class="klabel">تلميذ مسجّل</div></div>
+        <div class="kpi-mini"><div class="kval">${classCount ?? 0}</div><div class="klabel">قسم</div></div>
+        <div class="kpi-mini"><div class="kval">${teacherCount ?? 0}</div><div class="klabel">أستاذ</div></div>
+        <div class="kpi-mini"><div class="kval">${absentToday}</div><div class="klabel">غياب اليوم</div></div>
+      `;
+    }
+  } catch (err) {
+    console.error("خطأ في تحميل KPI:", err);
+  }
 }
 
 function fmtDateOf(iso) {
@@ -166,40 +38,49 @@ function fmtDateOf(iso) {
 }
 
 async function init() {
-  profile = await requireSession(["admin", "supervisor"]);
-  if (!profile) return;
+  try {
+    profile = await requireSession(["admin", "supervisor"]);
+    if (!profile) return;
 
-  document.getElementById("adminName").textContent = profile.full_name;
-  renderSidebar("admin", profile.role);
+    document.getElementById("adminName").textContent = profile.full_name;
+    
+    // التأكد من وجود دالة الشريط الجانبي لتفادي التوقف
+    if (typeof renderSidebar === "function") {
+      renderSidebar("admin", profile.role);
+    }
 
-  selectedDate = todayISO();
-  const picker = document.getElementById("datePicker");
-  picker.value = selectedDate;
-  picker.max = todayISO();
-  picker.addEventListener("change", () => {
-    selectedDate = picker.value || todayISO();
-    document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
-    loadKpiStrip();
-    loadClassMatrix();
-  });
-
-  document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
-  await loadKpiStrip();
-
-  // جلب الأقسام
-  const { data: classes } = await db.from("classes").select("id, name").order("name");
-  const classSelector = document.getElementById("classSelector");
-  classSelector.innerHTML = "";
-  if (classes && classes.length > 0) {
-    classes.forEach(c => {
-      const opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.name;
-      classSelector.appendChild(opt);
+    selectedDate = todayISO();
+    const picker = document.getElementById("datePicker");
+    picker.value = selectedDate;
+    picker.max = todayISO();
+    picker.addEventListener("change", () => {
+      selectedDate = picker.value || todayISO();
+      document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
+      loadKpiStrip();
+      loadClassMatrix();
     });
-    loadClassMatrix();
-  } else {
-    classSelector.innerHTML = `<option value="">لا توجد أقسام</option>`;
+
+    document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
+    await loadKpiStrip();
+
+    // جلب الأقسام
+    const { data: classes, error } = await db.from("classes").select("id, name").order("name");
+    const classSelector = document.getElementById("classSelector");
+    classSelector.innerHTML = "";
+    
+    if (classes && classes.length > 0) {
+      classes.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.name;
+        classSelector.appendChild(opt);
+      });
+      loadClassMatrix();
+    } else {
+      classSelector.innerHTML = `<option value="">لا توجد أقسام</option>`;
+    }
+  } catch (e) {
+    console.error("حدث خطأ أثناء البدء:", e);
   }
 }
 
@@ -213,14 +94,13 @@ async function loadClassMatrix() {
   }
 
   currentDayPeriods = getPeriodsForDay(selectedDate);
-  if (currentDayPeriods.length === 0) {
+  if (!currentDayPeriods || currentDayPeriods.length === 0) {
     container.innerHTML = `<div class="empty-state"><div class="icon">🏖️</div>عطلة أسبوعية — لا توجد حصص مبرمجة في هذا اليوم.</div>`;
     return;
   }
 
   container.innerHTML = `<div class="loading-text">جاري تحميل شبكة القسم...</div>`;
 
-  // جلب التلاميذ ورسائل الغياب بالتوازي
   const [{ data: students }, { data: records }] = await Promise.all([
     db.from("students").select("id, full_name").eq("class_id", classId).eq("active", true).order("full_name"),
     db.from("attendance_records").select("id, student_id, hour_slot, status").eq("class_id", classId).eq("record_date", selectedDate)
@@ -231,13 +111,11 @@ async function loadClassMatrix() {
     return;
   }
 
-  // إعداد خريطة الغيابات للوصول المباشر
   const recMap = {};
   (records || []).forEach(r => {
     recMap[`${r.student_id}_${r.hour_slot}`] = { id: r.id, status: r.status };
   });
 
-  // بناء الجدول الشبكي
   let html = `
     <table class="matrix-table">
       <thead>
@@ -281,15 +159,12 @@ async function loadClassMatrix() {
   container.innerHTML = html;
 }
 
-// دالة التبديل الفوري عند الضغط على مربع الحصة
 async function toggleSlot(btn) {
   const studentId = btn.dataset.studentid;
   const slot = parseInt(btn.dataset.slot);
   const classId = document.getElementById("classSelector").value;
-  let recId = btn.dataset.recid;
 
   if (btn.classList.contains("present")) {
-    // التحول لـ: غائب (أحمر)
     btn.className = "slot-btn absent";
     const { data } = await db.from("attendance_records").upsert({
       student_id: studentId,
@@ -300,20 +175,18 @@ async function toggleSlot(btn) {
     }, { onConflict: "student_id,record_date,hour_slot" }).select("id").single();
     
     if (data) btn.dataset.recid = data.id;
-    showToast("تم تسجيل الغياب");
+    if (typeof showToast === "function") showToast("تم تسجيل الغياب");
 
   } else if (btn.classList.contains("absent")) {
-    // التحول لـ: تسوية وضعية (أصفر)
     btn.className = "slot-btn resolved";
     await db.from("attendance_records").update({
       status: "تسوية وضعية",
       updated_at: new Date().toISOString()
     }).eq("student_id", studentId).eq("record_date", selectedDate).eq("hour_slot", slot);
     
-    showToast("تم تسوية الوضعية");
+    if (typeof showToast === "function") showToast("تم تسوية الوضعية");
 
   } else {
-    // التحول لـ: حاضر (أخضر) وحذف السجل
     btn.className = "slot-btn present";
     await db.from("attendance_records").delete()
       .eq("student_id", studentId)
@@ -321,13 +194,12 @@ async function toggleSlot(btn) {
       .eq("hour_slot", slot);
     
     btn.dataset.recid = "";
-    showToast("تم إلغاء الغياب (حاضر)");
+    if (typeof showToast === "function") showToast("تم إلغاء الغياب (حاضر)");
   }
 
   loadKpiStrip();
 }
 
-// الفلترة الفورية للتلاميذ بالبحث
 function filterStudents() {
   const q = document.getElementById("studentSearch").value.toLowerCase().trim();
   const rows = document.querySelectorAll(".student-item");
@@ -337,8 +209,6 @@ function filterStudents() {
   });
 }
 
-init();
+// بدء التشغيل
+document.addEventListener("DOMContentLoaded", init);
 </script>
-<div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
-</body>
-</html>
