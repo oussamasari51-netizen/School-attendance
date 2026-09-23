@@ -91,7 +91,7 @@ async function loadKpiStrip() {
       db.from("students").select("id", { count: "exact", head: true }).eq("active", true),
       db.from("classes").select("id", { count: "exact", head: true }),
       db.from("teachers").select("id", { count: "exact", head: true }),
-      db.from("attendance_records").select("student_id, status").eq("record_date", todayISO()),
+      db.from("attendance_records").select("student_id, status").eq("record_date", selectedDate || todayISO()),
     ]);
     const absentToday = new Set((todayRecs || []).filter(r => r.status !== "تسوية وضعية").map(r => r.student_id)).size;
 
@@ -119,8 +119,9 @@ function parseTime(str) {
 }
 
 function periodStatus(p) {
-  if (selectedDate < todayISO()) return "done";
-  if (selectedDate > todayISO()) return "pending";
+  const today = (typeof todayISO === 'function') ? todayISO() : new Date().toISOString().split("T")[0];
+  if (selectedDate < today) return "done";
+  if (selectedDate > today) return "pending";
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const { start, end } = parseTime(p.time);
@@ -133,15 +134,16 @@ async function init() {
   profile = await requireSession(["admin", "supervisor"]);
   if (!profile) return;
 
-  document.getElementById("adminName").textContent = profile.full_name;
+  document.getElementById("adminName").textContent = profile.full_name || profile.name || "الناظر";
   if(typeof renderSidebar === 'function') renderSidebar("admin", profile.role);
-  loadKpiStrip();
 
-  selectedDate = todayISO();
+  selectedDate = (typeof todayISO === 'function') ? todayISO() : new Date().toISOString().split("T")[0];
   const picker = document.getElementById("datePicker");
   picker.value = selectedDate;
-  picker.max = todayISO();
+  picker.max = selectedDate;
   picker.addEventListener("change", onDateChange);
+
+  loadKpiStrip();
 
   const { data: classes } = await db.from("classes").select("id, name").order("name");
   classesCache = classes || [];
@@ -152,6 +154,7 @@ async function init() {
 function onDateChange() {
   selectedDate = document.getElementById("datePicker").value || todayISO();
   document.getElementById("detailSection").style.display = "none";
+  loadKpiStrip();
   loadDay();
 }
 
@@ -159,7 +162,16 @@ function loadDay() {
   document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
   renderRail();
 
-  const dayPeriods = getPeriodsForDay(selectedDate);
+  const dayPeriods = (typeof getPeriodsForDay === 'function') ? getPeriodsForDay(selectedDate) : [
+    { slot: 1, label: "ح1", time: "08-09" },
+    { slot: 2, label: "ح2", time: "09-10" },
+    { slot: 3, label: "ح3", time: "10-11" },
+    { slot: 4, label: "ح4", time: "11-12" },
+    { slot: 5, label: "ح5", time: "13-14" },
+    { slot: 6, label: "ح6", time: "14-15" },
+    { slot: 7, label: "ح7", time: "15-16" }
+  ];
+
   if (dayPeriods.length === 0) {
     document.getElementById("gridTitle").textContent = "عطلة في هذا اليوم";
     document.getElementById("classGrid").innerHTML = `<div class="empty-state"><div class="icon">🏖️</div>لا حصص مبرمجة في هذا اليوم.</div>`;
@@ -176,7 +188,16 @@ function loadDay() {
 function renderRail() {
   const track = document.getElementById("railTrack");
   track.innerHTML = "";
-  const dayPeriods = getPeriodsForDay(selectedDate);
+  const dayPeriods = (typeof getPeriodsForDay === 'function') ? getPeriodsForDay(selectedDate) : [
+    { slot: 1, label: "ح1", time: "08-09" },
+    { slot: 2, label: "ح2", time: "09-10" },
+    { slot: 3, label: "ح3", time: "10-11" },
+    { slot: 4, label: "ح4", time: "11-12" },
+    { slot: 5, label: "ح5", time: "13-14" },
+    { slot: 6, label: "ح6", time: "14-15" },
+    { slot: 7, label: "ح7", time: "15-16" }
+  ];
+
   if (dayPeriods.length === 0) {
     track.innerHTML = `<div class="loading-text" style="padding:8px 0;">عطلة — لا حصص مبرمجة في هذا اليوم</div>`;
     return;
@@ -195,7 +216,7 @@ async function selectPeriod(slot) {
   selectedSlot = slot;
   renderRail();
   document.getElementById("detailSection").style.display = "none";
-  const dayPeriods = getPeriodsForDay(selectedDate);
+  const dayPeriods = (typeof getPeriodsForDay === 'function') ? getPeriodsForDay(selectedDate) : [];
   const p = dayPeriods.find(x => x.slot === slot);
   document.getElementById("gridTitle").textContent = `الأقسام — الحصة ${slot} (${p ? p.time : ""})`;
 
@@ -242,8 +263,7 @@ async function renderDetailList() {
     .select("id, status, students(id, full_name)")
     .eq("class_id", selectedClass.id)
     .eq("record_date", selectedDate)
-    .eq("hour_slot", selectedSlot)
-    .order("created_at");
+    .eq("hour_slot", selectedSlot);
 
   if (!records || records.length === 0) {
     list.innerHTML = `<div class="empty-state"><div class="icon">✅</div>لا يوجد غياب مسجل في هذه الحصة لهذا القسم.</div>`;
@@ -289,6 +309,7 @@ function openModal(record) {
       if(typeof showToast === 'function') showToast("تم تحديث الحالة");
       renderDetailList();
       selectPeriod(selectedSlot);
+      loadKpiStrip();
     };
     optList.appendChild(btn);
   });
