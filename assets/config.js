@@ -1,38 +1,37 @@
 // ===== إعدادات الاتصال بـ Supabase =====
-// هذا الملف يحتوي على رابط ومفتاح المشروع (المفتاح publishable آمن للاستخدام هنا)
-
 const SUPABASE_URL = "https://lvnofpsksamoppmkuywh.supabase.co";
 const SUPABASE_KEY = "sb_publishable_-PltDkklG2Cf5oubRAH2zQ_oT-Gdbxh";
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ===== الحصص الدراسية (التوقيت المعتمد) =====
-// عدّل الأوقات هنا إذا كان توقيت مدرستك مختلفاً
+// ===== الحصص الدراسية المعتمدة (4 صباحاً + 3 مساءً = 7 حصص) =====
 const PERIODS = [
-  { slot: 1, label: "1", time: "08:00–09:00" },
-  { slot: 2, label: "2", time: "09:00–10:00" },
-  { slot: 3, label: "3", time: "10:00–11:00" },
-  { slot: 4, label: "4", time: "11:00–12:00" },
-  { slot: 5, label: "5", time: "13:00–14:00" },
-  { slot: 6, label: "6", time: "14:00–15:00" },
-  { slot: 7, label: "7", time: "15:00–16:00" },
+  { slot: 1, label: "ح1", time: "08:00–09:00", period: "morning" },
+  { slot: 2, label: "ح2", time: "09:00–10:00", period: "morning" },
+  { slot: 3, label: "ح3", time: "10:00–11:00", period: "morning" },
+  { slot: 4, label: "ح4", time: "11:00–12:00", period: "morning" },
+  { slot: 5, label: "ح5", time: "13:00–14:00", period: "afternoon" },
+  { slot: 6, label: "ح6", time: "14:00–15:00", period: "afternoon" },
+  { slot: 7, label: "ح7", time: "15:00–16:00", period: "afternoon" }
 ];
 
-// عدد الحصص الفعلي لكل يوم (0=الأحد ... 6=السبت). الثلاثاء 4 حصص فقط (صباحاً)، الجمعة والسبت عطلة.
+// عدد الحصص الفعلي حسب أيام الأسبوع (0=الأحد ... 6=السبت)
+// الأحد، الاثنين، الأربعاء، الخميس = 7 حصص
+// الثلاثاء = 4 حصص فقط (صباحاً)
+// الجمعة والسبت = 0 (عطلة)
 const DAY_PERIODS_COUNT = { 0: 7, 1: 7, 2: 4, 3: 7, 4: 7, 5: 0, 6: 0 };
 
 function isSchoolDay(dow) {
   return DAY_PERIODS_COUNT[dow] > 0;
 }
 
-// يرجع فقط الحصص المتاحة فعلياً في يوم معيّن (تاريخ أو رقم يوم)
+// أخذ الحصص الخاصة باليوم المحدد فقط
 function getPeriodsForDay(dateOrDow) {
   const dow = typeof dateOrDow === "number" ? dateOrDow : new Date(dateOrDow + "T00:00:00").getDay();
   const count = DAY_PERIODS_COUNT[dow] || 0;
   return PERIODS.filter(p => p.slot <= count);
 }
 
-// آخر حصة في اليوم (لتحديد هل التلميذ ممنوع من الدخول غداً)
 function lastPeriodOfDay(dateOrDow) {
   const dow = typeof dateOrDow === "number" ? dateOrDow : new Date(dateOrDow + "T00:00:00").getDay();
   return DAY_PERIODS_COUNT[dow] || 0;
@@ -40,31 +39,30 @@ function lastPeriodOfDay(dateOrDow) {
 
 const SCHOOL_NAME = "متوسطة بوزراد حسين — عنابة";
 const APP_NAME = "برنامج الناظر";
-const SCHOOL_YEAR = "2026-2027"; // عدّل هذا كل بداية سنة دراسية
+const SCHOOL_YEAR = "2026-2027";
 
-// حصص "استعمال الزمن" البيداغوجي (منفصلة عن حصص تسجيل الغياب) — 8 حصص، الأحد إلى الخميس
+// استعمال الزمن البيداغوجي
 const TIMETABLE_PERIODS = [
   { slot: 1, label: "1", time: "08:00–09:00" },
   { slot: 2, label: "2", time: "09:00–10:00" },
   { slot: 3, label: "3", time: "10:00–11:00" },
   { slot: 4, label: "4", time: "11:00–12:00" },
-  { slot: 5, label: "5", time: "13:30–14:30" },
-  { slot: 6, label: "6", time: "14:30–15:30" },
-  { slot: 7, label: "7", time: "15:30–16:30" },
-  { slot: 8, label: "8", time: "16:30–17:30" },
+  { slot: 5, label: "5", time: "13:00–14:00" },
+  { slot: 6, label: "6", time: "14:00–15:00" },
+  { slot: 7, label: "7", time: "15:00–16:00" }
 ];
 const TIMETABLE_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 
 const STATUS_OPTIONS = [
+  { value: "غائب", cls: "opt-absent" },
   { value: "تسوية وضعية", cls: "opt-resolved" },
-  { value: "خروج استثنائي", cls: "opt-pending" },
+  { value: "خروج استثنائي", cls: "opt-pending" }
 ];
 
-// تصنيف الحالة: "resolved" (تسوية وضعية) يُستبعد كلياً من إحصاء الغياب، وأي شيء آخر يُحتسب غياباً
 function reportCategory(status) {
   if (status === "تسوية وضعية") return "resolved";
   if (status === "خروج استثنائي") return "exit";
-  return "plain"; // الحالة الافتراضية "غائب"
+  return "plain"; // غائب
 }
 
 function todayISO() {
@@ -72,9 +70,8 @@ function todayISO() {
   return d.toISOString().slice(0, 10);
 }
 
-// تحويل يوم الأسبوع الحالي إلى نظام (0=الأحد ... 4=الخميس) المعتمد في الجدول
 function currentDayOfWeek() {
-  return new Date().getDay(); // الأحد=0 ... السبت=6 (نعتمد فقط 0-4 للمتوسطة)
+  return new Date().getDay();
 }
 
 function showToast(msg) {
@@ -108,7 +105,7 @@ async function requireSession(expectedRole) {
     window.location.href = "index.html";
     return null;
   }
-  // expectedRole يقبل الآن نصاً واحداً أو مصفوفة أدوار مسموحة، مثال: ["admin","supervisor"]
+  
   const allowed = Array.isArray(expectedRole) ? expectedRole : (expectedRole ? [expectedRole] : null);
   if (allowed && !allowed.includes(profile.role)) {
     window.location.href = profile.role === "teacher" ? "teacher.html" : "admin.html";
