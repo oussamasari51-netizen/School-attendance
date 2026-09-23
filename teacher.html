@@ -40,6 +40,401 @@
     transition: transform 0.15s ease, background 0.2s ease; display: inline-flex; align-items: center; justify-content: center; margin: 0 1px;
   }
   .slot-btn:active { transform: scale(0.92); }
+  
+  /* الألوان الثابتة والواضحة من بعيد */
+  .slot-btn.present { background: #22c55e !important; color: #fff !important; }
+  .slot-btn.absent { background: #ef4444 !important; color: #fff !important; }
+  .slot-btn.resolved { background: #f59e0b !important; color: #fff !important; }
+  
+  /* إطار متقطع للتعديل المعلق قبل الضغط على حفظ */
+  .slot-btn.modified {
+    outline: 3px dashed #1e40af;
+    outline-offset: 1px;
+  }
+
+  .save-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+
+  .btn-save {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+  }
+  .btn-save:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+  }
+
+  .toolbar-card { background: var(--surface, #ffffff); border: 1px solid var(--line, #e2e8f0); border-radius: 12px; padding: 12px; margin-bottom: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="icon">📋</div>
+    <div>
+      <h1 style="font-size: 1.1rem;">تسجيل الغياب</h1>
+      <div class="meta" id="dateLabel" style="font-size: 0.8rem;"></div>
+    </div>
+  </div>
+  <div class="user-chip">
+    <span id="teacherName">...</span>
+    <button onclick="logout()">خروج</button>
+  </div>
+</div>
+
+<div class="page" style="padding: 10px;">
+
+  <div class="toolbar-card">
+    <div style="flex:1; min-width:130px;">
+      <label style="font-size:11px; font-weight:bold; color:var(--ink-soft,#64748b); display:block; margin-bottom:2px;">التاريخ</label>
+      <input type="date" id="datePicker" class="datepick-inline" style="width:100%; padding: 6px;">
+    </div>
+
+    <div style="flex:1; min-width:150px;">
+      <label style="font-size:11px; font-weight:bold; color:var(--ink-soft,#64748b); display:block; margin-bottom:2px;">القسم</label>
+      <select id="classSelector" style="padding: 6px;">
+        <option value="">اختر القسم...</option>
+      </select>
+    </div>
+
+    <div style="flex:2; min-width:180px;">
+      <label style="font-size:11px; font-weight:bold; color:var(--ink-soft,#64748b); display:block; margin-bottom:2px;">🔍 البحث عن تلميذ</label>
+      <input type="text" id="studentSearch" placeholder="اكتب الاسم..." style="padding: 6px;">
+    </div>
+  </div>
+
+  <!-- شريط الحفظ -->
+  <div class="save-bar" id="saveBar">
+    <span id="changesStatus" style="font-size: 0.85rem; color: #1e40af;">لا توجد تغييرات معلقة</span>
+    <button id="saveBtn" class="btn-save" onclick="saveAllChanges()" disabled>💾 حفظ التغييرات</button>
+  </div>
+
+  <div id="matrixContainer" class="matrix-table-wrapper">
+    <div class="loading-text">اختر قسماً لبدء الرصد...</div>
+  </div>
+
+</div>
+
+<script src="assets/config.js"></script>
+<script>
+let profile = null;
+let selectedDate = null;
+let currentDayPeriods = [];
+let isMatrixLoading = false;
+let pendingChanges = {};
+
+function safeToast(msg) {
+  if (typeof showToast === 'function') showToast(msg);
+  else alert(msg);
+}
+
+function fmtDateOf(iso) {
+  const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  const d = new Date(iso + "T00:00:00");
+  return `${dayNames[d.getDay()]} — ${d.toLocaleDateString("ar-DZ")}`;
+}
+
+async function init() {
+  profile = await requireSession(["teacher", "supervisor", "admin"]);
+  if (!profile) return;
+
+  document.getElementById("teacherName").textContent = profile.full_name || profile.name || "أستاذ";
+
+  selectedDate = (typeof todayISO === 'function') ? todayISO() : new Date().toISOString().split("T")[0];
+  const picker = document.getElementById("datePicker");
+  picker.value = selectedDate;
+  picker.max = selectedDate;
+  
+  picker.addEventListener("change", () => {
+    if (checkUnsavedChanges()) return;
+    selectedDate = picker.value || todayISO();
+    document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
+    loadClassMatrix();
+  });
+
+  document.getElementById("classSelector").addEventListener("change", () => {
+    if (checkUnsavedChanges()) return;
+    loadClassMatrix();
+  });
+  
+  document.getElementById("studentSearch").addEventListener("keyup", filterStudents);
+  document.getElementById("dateLabel").textContent = fmtDateOf(selectedDate);
+
+  const { data: classes } = await db.from("classes").select("id, name").order("name");
+  const classSelector = document.getElementById("classSelector");
+  
+  if (classes && classes.length > 0) {
+    classSelector.innerHTML = `<option value="">اختر القسم...</option>`;
+    classes.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      classSelector.appendChild(opt);
+    });
+  } else {
+    classSelector.innerHTML = `<option value="">لا توجد أقسام</option>`;
+  }
+}
+
+function checkUnsavedChanges() {
+  if (Object.keys(pendingChanges).length > 0) {
+    const confirmLeave = confirm("توجد تغييرات غير محفوظة! هل تريد الانتقال وتجاهلها؟");
+    if (!confirmLeave) return true;
+    pendingChanges = {};
+    updateSaveUI();
+  }
+  return false;
+}
+
+async function loadClassMatrix() {
+  if (isMatrixLoading) return;
+  
+  const classId = document.getElementById("classSelector").value;
+  const container = document.getElementById("matrixContainer");
+
+  if (!classId) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">🏫</div>يرجى اختيار قسم لمتابعة الغيابات.</div>`;
+    return;
+  }
+
+  isMatrixLoading = true;
+  pendingChanges = {}; 
+  updateSaveUI();
+
+  if (typeof getPeriodsForDay === 'function') {
+    currentDayPeriods = getPeriodsForDay(selectedDate);
+  } else {
+    const d = new Date(selectedDate + "T00:00:00");
+    const dayOfWeek = d.getDay();
+    if (dayOfWeek === 5 || dayOfWeek === 6) {
+      currentDayPeriods = [];
+    } else if (dayOfWeek === 2) {
+      currentDayPeriods = [
+        { slot: 1, label: "ح1", time: "08-09" },
+        { slot: 2, label: "ح2", time: "09-10" },
+        { slot: 3, label: "ح3", time: "10-11" },
+        { slot: 4, label: "ح4", time: "11-12" }
+      ];
+    } else {
+      currentDayPeriods = [
+        { slot: 1, label: "ح1", time: "08-09" },
+        { slot: 2, label: "ح2", time: "09-10" },
+        { slot: 3, label: "ح3", time: "10-11" },
+        { slot: 4, label: "ح4", time: "11-12" },
+        { slot: 5, label: "ح5", time: "13-14" },
+        { slot: 6, label: "ح6", time: "14-15" },
+        { slot: 7, label: "ح7", time: "15-16" }
+      ];
+    }
+  }
+
+  if (!currentDayPeriods || currentDayPeriods.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">🏖️</div>عطلة أسبوعية — لا توجد حصص مبرمجة.</div>`;
+    isMatrixLoading = false;
+    return;
+  }
+
+  container.innerHTML = `<div class="loading-text">جاري تحميل الغيابات...</div>`;
+
+  try {
+    const [{ data: students }, { data: records }] = await Promise.all([
+      db.from("students").select("id, full_name").eq("class_id", classId).eq("active", true).order("full_name"),
+      db.from("attendance_records").select("id, student_id, hour_slot, status").eq("class_id", classId).eq("record_date", selectedDate)
+    ]);
+
+    if (!students || students.length === 0) {
+      container.innerHTML = `<div class="empty-state"><div class="icon">👤</div>لا يوجد تلاميذ في هذا القسم.</div>`;
+      isMatrixLoading = false;
+      return;
+    }
+
+    const recMap = {};
+    (records || []).forEach(r => {
+      recMap[`${r.student_id}_${r.hour_slot}`] = { id: r.id, status: r.status };
+    });
+
+    let html = `
+      <table class="matrix-table">
+        <thead>
+          <tr>
+            <th>اسم التلميذ</th>`;
+    
+    currentDayPeriods.forEach(p => {
+      html += `<th>${p.label}<br><span style="font-size:9px; opacity:0.75;">${p.time}</span></th>`;
+    });
+
+    html += `</tr></thead><tbody id="matrixBody">`;
+
+    students.forEach(s => {
+      html += `<tr class="student-item" data-name="${s.full_name}">
+        <td>${s.full_name}</td>`;
+
+      currentDayPeriods.forEach(p => {
+        const rec = recMap[`${s.student_id}_${p.slot}`];
+        const status = rec ? rec.status : "حاضر";
+        
+        let btnClass = "slot-btn present";
+        if (status === "غائب") btnClass = "slot-btn absent";
+        else if (status === "تسوية وضعية" || status === "خروج استثنائي") btnClass = "slot-btn resolved";
+
+        html += `<td>
+          <button class="${btnClass}" data-studentid="${s.id}" data-slot="${p.slot}" data-original="${status}" onclick="toggleSlot(this)">
+            ${p.slot}
+          </button>
+        </td>`;
+      });
+
+      html += `</tr>`;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+    filterStudents();
+  } catch (e) {
+    console.error(e);
+  } finally {
+    isMatrixLoading = false;
+  }
+}
+
+function toggleSlot(btn) {
+  const studentId = btn.dataset.studentid;
+  const slot = parseInt(btn.dataset.slot);
+  const key = `${studentId}_${slot}`;
+
+  let nextStatus = "حاضر";
+
+  if (btn.classList.contains("present")) {
+    btn.className = "slot-btn absent modified";
+    nextStatus = "غائب";
+  } else if (btn.classList.contains("absent")) {
+    btn.className = "slot-btn resolved modified";
+    nextStatus = "تسوية وضعية";
+  } else {
+    btn.className = "slot-btn present modified";
+    nextStatus = "حاضر";
+  }
+
+  if (nextStatus === btn.dataset.original) {
+    delete pendingChanges[key];
+    btn.classList.remove("modified");
+  } else {
+    pendingChanges[key] = {
+      student_id: studentId,
+      hour_slot: slot,
+      status: nextStatus,
+      btnRef: btn
+    };
+  }
+
+  updateSaveUI();
+}
+
+function updateSaveUI() {
+  const count = Object.keys(pendingChanges).length;
+  const saveBtn = document.getElementById("saveBtn");
+  const statusLabel = document.getElementById("changesStatus");
+
+  if (count > 0) {
+    saveBtn.disabled = false;
+    statusLabel.style.color = "#d97706";
+    statusLabel.textContent = `⚠️ هناك (${count}) تعديلات غير محفوظة!`;
+  } else {
+    saveBtn.disabled = true;
+    statusLabel.style.color = "#1e40af";
+    statusLabel.textContent = "لا توجد تغييرات معلقة";
+  }
+}
+
+async function saveAllChanges() {
+  const classId = document.getElementById("classSelector").value;
+  const saveBtn = document.getElementById("saveBtn");
+  const keys = Object.keys(pendingChanges);
+
+  if (keys.length === 0) return;
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = "جاري الحفظ...";
+
+  try {
+    for (const key of keys) {
+      const item = pendingChanges[key];
+
+      if (item.status === "حاضر") {
+        // إذا عاد التلميذ حاضراً نحذف القيد ليكون حراً في الواجهات الأخرى
+        await db.from("attendance_records")
+          .delete()
+          .eq("student_id", item.student_id)
+          .eq("record_date", selectedDate)
+          .eq("hour_slot", item.hour_slot);
+      } else {
+        // إدراج أو تحديث في قاعدة البيانات ليظهر فوراً للناظر
+        await db.from("attendance_records").upsert({
+          student_id: item.student_id,
+          class_id: classId,
+          record_date: selectedDate,
+          hour_slot: item.hour_slot,
+          status: item.status,
+          recorded_by: profile.id,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "student_id,record_date,hour_slot" });
+      }
+
+      // تثبيت اللون ومنع تصفير الشاشة
+      if (item.btnRef) {
+        item.btnRef.dataset.original = item.status;
+        item.btnRef.classList.remove("modified");
+      }
+    }
+
+    safeToast("تم حفظ الغيابات بنجاح وتحديث صفحة الناظر ✓");
+    pendingChanges = {};
+    updateSaveUI();
+
+  } catch (e) {
+    console.error("خطأ الحفظ:", e);
+    alert("حدث خطأ أثناء الحفظ. يرجى التأكد من الاتصال بالإنترنت.");
+    saveBtn.disabled = false;
+  } finally {
+    saveBtn.textContent = "💾 حفظ التغييرات";
+  }
+}
+
+function filterStudents() {
+  const q = document.getElementById("studentSearch").value.toLowerCase().trim();
+  const rows = document.querySelectorAll(".student-item");
+  rows.forEach(row => {
+    const name = row.dataset.name.toLowerCase();
+    row.style.display = name.includes(q) ? "" : "none";
+  });
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+<div class="app-footer">© جميع الحقوق محفوظة — OUSSAMA SARI 2026</div>
+</body>
+</html>  
+  .slot-btn {
+    width: 36px; height: 36px; border-radius: 8px; border: none; font-weight: bold; font-size: 12px; cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease; display: inline-flex; align-items: center; justify-content: center; margin: 0 1px;
+  }
+  .slot-btn:active { transform: scale(0.92); }
   .slot-btn.present { background: #22c55e; color: #fff; }
   .slot-btn.absent { background: #ef4444; color: #fff; }
   .slot-btn.resolved { background: #f59e0b; color: #fff; }
